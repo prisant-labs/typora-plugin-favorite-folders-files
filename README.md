@@ -1,0 +1,1 @@
+# typora-plugin-quick-access-folder-files
