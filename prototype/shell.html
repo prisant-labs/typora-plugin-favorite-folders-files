@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'; connect-src 'none'">
+<meta name="source-fingerprint" content="{{FINGERPRINT}}">
+<title>Quick Access for Typora · Current solution</title>
+<style>{{CSS}}</style>
+</head>
+<body>
+<header class="preview-header"><div><p class="eyebrow">Prisant Labs</p><h1>Quick Access for Typora</h1><p>Your folders and files, close at hand.</p></div>
+<details open><summary>Preview controls · outside the plugin</summary><div class="preview-controls">
+<label>Theme <select id="theme"><option value="light">Light</option><option value="dark">Dark</option></select></label>
+<label>Panel <select id="panel-width"><option value="280">Narrow · 280</option><option value="340" selected>Default · 340</option><option value="400">Wide · 400</option></select></label>
+<label>Scenario <select id="scenario"><option value="everyday">Everyday use</option><option value="missing">Unavailable location</option><option value="empty">First use</option><option value="long">Long / Unicode paths</option></select></label>
+<label><input id="cancel-navigation" type="checkbox"> Simulate cancelled navigation</label><button id="reset">Reset fixture</button>
+</div></details></header>
+<main class="preview-window" aria-label="Simulated Typora workspace">
+<div class="titlebar"><span class="appmark">T</span>Working notes.md - Typora<span>Current solution · {{VERSION}}</span></div>
+<div class="workspace"><nav class="ribbon" aria-label="Workspace ribbon"><button id="ribbon-files" title="Files" aria-label="Files panel" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h6l2 2h10v12H3Z"/></svg></button><button id="ribbon-quick-access" title="Quick Access" aria-label="Quick Access panel" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18l-7-4-7 4Z M9 8h6 M9 11h4"/></svg></button></nav>
+<aside class="sidebar"><div id="panel-mount"></div><div id="native-files" hidden><h2>Files</h2><p>Field notes</p><p>Working notes.md</p><p>README.md</p><p>Ideas.md</p></div></aside>
+<section class="editor" aria-label="Editor context"><div class="tab-strip">Working notes.md</div><p id="document-path" class="breadcrumb"></p><article><p class="eyebrow">Field notes / Working draft</p><h1>A place to pick up again</h1><p class="intro">Keep the work you return to within reach.</p><h2>Keep the useful things close</h2><p>A folder for the project. A file for the next thought. Quick Access keeps both beside the document, with your pinned places above the ones you visited recently.</p><blockquote>One quiet place to return to the work.</blockquote><h2>A quieter way back</h2><p>Try pinning a location, switching to Files, or searching for “README”. The panel here is the same component that the plugin loads in Typora.</p><p class="annotation">The surrounding editor is a synthetic fixture. File navigation and Finder actions are simulated; this page has no filesystem access.</p></article></section>
+<aside class="outline"><h2>Outline</h2><p>A place to pick up again</p><p>　Keep the useful things close</p><p>　A quieter way back</p></aside></div>
+<footer id="host-status" role="status"></footer></main>
+<footer class="preview-footer"><p>Tab to navigate · Enter to activate · Arrow keys to change tabs</p><details><summary>Source and license</summary><p>Generated from production source. CI requires this file to match the current source.</p><code>{{FINGERPRINT}}</code><pre>{{LICENSE}}</pre></details></footer>
+<dialog id="settings-dialog"><h2>Quick Access settings</h2><div id="settings-mount"></div><p>This preview uses fictional data.</p><button id="close-settings">Done</button></dialog>
+<script>{{JS}}</script>
+</body></html>

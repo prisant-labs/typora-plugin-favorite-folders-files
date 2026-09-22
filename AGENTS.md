@@ -20,6 +20,12 @@
 
 ## Development expectations
 
+- The current visual anchor is `docs/prototype/quick-access.html`. Open it to
+  inspect the current solution before changing visible behavior.
+- Render the production panel, model, and styles in that self-contained page.
+  Adapt only host services and synthetic fixtures; do not maintain a second UI.
+- Run `pnpm prototype:build` after source changes and commit the generated HTML.
+  `pnpm prototype:check` must pass in CI without first regenerating the page.
 - Add or update tests before implementing behavior.
 - Run `pnpm test:run` and `pnpm typecheck` for code changes.
 - Run `pnpm run pack` and `pnpm release:check` before preparing a release artifact.
