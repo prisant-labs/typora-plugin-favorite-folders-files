@@ -1,0 +1,15 @@
+{
+  "id": "prisant-labs.quick-access",
+  "name": "Quick Access",
+  "description": "Keep pinned and recent folders and files within reach in Typora.",
+  "author": "Prisant Labs",
+  "authorUrl": "https://github.com/prisant-labs",
+  "repo": "prisant-labs/typora-plugin-quick-access-folder-files",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "minCoreVersion": "2.10.21",
+  "platforms": [
+    "win32",
+    "darwin"
+  ]
+}

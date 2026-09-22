@@ -1,0 +1,58 @@
+# Private working material, design records, test receipts, and session logs.
+_local/
+/.worktrees/
+
+# Dependencies, local package stores, and rebuildable output.
+node_modules/
+.pnpm-store/
+/dist/
+*.tsbuildinfo
+
+# Generated release assets belong on GitHub Releases, not in Git history.
+/plugin.zip
+/plugin_typora-quick-access-folder-files.zip
+
+# Test coverage, browser automation output, and local tool caches.
+.vitest/
+.vite/
+/coverage/
+/.nyc_output/
+/.playwright-mcp/
+/playwright-report/
+/test-results/
+/blob-report/
+
+# Local Typora installations, plugin settings, and workspace state.
+.typora/
+
+# Machine-local environment values. Only sanitized templates may be shared.
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.template
+!.env.*.template
+
+# Personal editor state; allow deliberately shared tasks/extensions.
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/tasks.json
+*.swp
+*.swo
+*~
+
+# Diagnostic output and temporary files. Store intentional evidence in _local/.
+*.log
+*.log.*
+*.tmp
+*.temp
+
+# macOS and Windows filesystem metadata.
+.DS_Store
+._*
+Thumbs.db
+Thumbs.db:encryptable
+Desktop.ini
+
+# This is not a secrets scanner or a history scrubber. Review staged changes.

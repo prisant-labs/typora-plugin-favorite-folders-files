@@ -1,0 +1,62 @@
+{
+  "private": true,
+  "name": "typora-plugin-quick-access-folder-files",
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.33.4",
+  "description": "Keep pinned and recent folders and files within reach in Typora.",
+  "type": "module",
+  "scripts": {
+    "build:dev": "node build.js",
+    "install:dev": "node build.js --install",
+    "build": "rollup -c rollup.config.js",
+    "pack": "pnpm run build && node pack.js",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "privacy:check": "node scripts/privacy-check.mjs --staged --repo .",
+    "release:check": "node scripts/release.mjs --check"
+  },
+  "keywords": [
+    "typora",
+    "typora-plugin",
+    "quick-access",
+    "files",
+    "folders"
+  ],
+  "author": "Prisant Labs",
+  "license": "MIT",
+  "devDependencies": {
+    "@babel/core": "^7.23.2",
+    "@babel/preset-env": "^7.23.2",
+    "@rollup/plugin-babel": "^6.0.4",
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-replace": "^5.0.4",
+    "@rollup/plugin-terser": "1.0.0",
+    "@rollup/plugin-typescript": "^11.1.5",
+    "@rollup/plugin-virtual": "^3.0.2",
+    "@types/jquery": "^3.5.32",
+    "@types/node": "^22.10.1",
+    "@typora-community-plugin/core": "2.10.21",
+    "archiver": "^7.0.1",
+    "esbuild": "0.28.2",
+    "esbuild-plugin-typora": "npm:@typora-community-plugin/esbuild-plugin-typora@^1.0.12",
+    "esbuild-sass-plugin": "3.7.0",
+    "fflate": "0.8.3",
+    "jsdom": "^27.0.0",
+    "rollup": "^4.24.0",
+    "rollup-plugin-scss": "^4.0.0",
+    "rollup-plugin-typora": "npm:@typora-community-plugin/rollup-plugin-typora@^1.1.1",
+    "sass": "^1.79.4",
+    "sass-embedded": "^1.97.3",
+    "tslib": "^2.8.1",
+    "typescript": "^5.9.3",
+    "vitest": "4.1.11"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "esbuild"
+    ]
+  }
+}
