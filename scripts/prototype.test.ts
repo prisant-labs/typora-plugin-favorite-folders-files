@@ -21,7 +21,7 @@ describe('CI visual anchor', () => {
       const after = await renderPrototype(directory)
       expect(before.match(/name="source-fingerprint" content="([^"]+)/)?.[1]).not.toBe(after.match(/name="source-fingerprint" content="([^"]+)/)?.[1])
     } finally { rmSync(directory, { recursive: true, force: true }) }
-  })
+  }, 20000) // Two complete bundles plus cold Sass startup, like the build test below.
   it('regenerates deterministically and rejects missing or changed committed output without rewriting it', () => {
     const directory = mkdtempSync(join(tmpdir(), 'quick-access-anchor-'))
     const output = join(directory, 'preview.html')
@@ -38,7 +38,7 @@ describe('CI visual anchor', () => {
       expect(readFileSync(output, 'utf8')).toContain('Stale folders and files')
     } finally { rmSync(directory, { recursive: true, force: true }) }
   }, 20000)
-  it('runs offline with actual production interactions and no external assets', () => {
+  it('runs offline with actual production Favorites interactions and no external assets', async () => {
     const html = readFileSync(resolve(root, 'docs/prototype/quick-access.html'), 'utf8')
     expect(html).not.toMatch(/<(?:script|link|img)[^>]+(?:src|href)=["'](?:https?:|\/\/)/i)
     expect(html).not.toMatch(/url\((?!data:)/)
@@ -52,12 +52,25 @@ describe('CI visual anchor', () => {
       expect(errors).toEqual([])
       expect(doc.documentElement.dataset.prototypeReady).toBe('true')
       expect(doc.querySelectorAll('.qa-row')).toHaveLength(5)
-      doc.querySelector<HTMLButtonElement>('[data-key=tab-file]')!.click()
-      expect(doc.querySelectorAll('.qa-row')).toHaveLength(5)
+      doc.querySelector<HTMLButtonElement>('[data-key=tab-recent]')!.click()
+      await Promise.resolve()
+      expect(doc.querySelectorAll('.qa-row')).toHaveLength(0)
+      expect(doc.querySelector('#ribbon-quick-access svg')?.getAttribute('width')).toBe('24')
+      // Host shell mirrors Core's settings wrappers so the preview's pane-height stretch is reviewable.
+      expect(doc.querySelector('.typ-modal__body > .typ-main > .typ-setting-tab > #settings-mount.qa-settings-host')).not.toBeNull()
+      doc.querySelector<HTMLButtonElement>('[data-key=history-import]')!.click()
+      await Promise.resolve()
+      expect(doc.querySelectorAll('.qa-row').length).toBeGreaterThan(0)
       const search = doc.querySelector<HTMLInputElement>('[data-key=search]')!
-      search.value = 'README'; search.dispatchEvent(new dom.window.Event('input'))
+      search.value = 'Projects'; search.dispatchEvent(new dom.window.Event('input'))
       expect(doc.querySelectorAll('.qa-row')).toHaveLength(2)
       expect(doc.querySelectorAll('.quick-access')).toHaveLength(1)
+      doc.querySelector<HTMLButtonElement>('[data-key=add]')!.click()
+      expect(doc.querySelector('.qa-editor')).not.toBeNull()
+      expect(doc.querySelector('[data-key=editor-save]')).not.toBeNull()
+      doc.querySelector<HTMLButtonElement>('#reset')!.click()
+      expect(doc.querySelector('.qa-editor')).toBeNull()
+      expect(doc.querySelector<HTMLInputElement>('[data-key=search]')!.value).toBe('')
     } finally { dom.window.close() }
   })
 })

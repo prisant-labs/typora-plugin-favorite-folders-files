@@ -12,8 +12,8 @@ describe('native path adapter', () => {
     expect(f.app.openFile).toHaveBeenCalledWith("C:\\Synthetic\\Editor's note.md")
   })
   it('rejects unsupported files and wrong-kind or missing targets before dispatch', async () => {
-    const f = fixture(); await expect(f.host.open('file', 'C:/Synthetic/script.exe')).rejects.toThrow('Markdown')
-    await expect(f.host.open('folder', 'C:/Synthetic')).rejects.toThrow('Unavailable')
+    const f = fixture(); await expect(f.host.open('file', 'C:/Synthetic/script.exe')).rejects.toThrow('Favorites opens Markdown files only.')
+    await expect(f.host.open('folder', 'C:/Synthetic')).rejects.toThrow('Your Favorite is preserved.')
     expect(f.services.invoke).not.toHaveBeenCalled(); expect(f.app.openFile).not.toHaveBeenCalled()
   })
   it('isolates folder switching and OS actions', async () => {
@@ -52,7 +52,7 @@ describe('native path adapter', () => {
   it('checks mac folders using the argument-based native directory capability', async () => {
     const f = fixture('darwin'); const isDirectory = vi.fn(async () => false)
     const host = new NativeHost(f.app, { ...f.services, isDirectory })
-    await expect(host.open('folder', "/Synthetic/Editor's notes")).rejects.toThrow('Unavailable')
+    await expect(host.open('folder', "/Synthetic/Editor's notes")).rejects.toThrow('Your Favorite is preserved.')
     expect(isDirectory).toHaveBeenCalledWith("/Synthetic/Editor's notes")
     expect(f.services.stat).not.toHaveBeenCalled(); expect(f.services.invoke).not.toHaveBeenCalled()
   })

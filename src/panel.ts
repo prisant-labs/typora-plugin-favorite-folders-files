@@ -14,6 +14,12 @@ export interface PanelActions {
   settings(): void
 }
 const paths: Record<string, string> = {
+  star: 'm12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z',
+  groups: 'M4 4h5v5H4Z M15 4h5v5h-5Z M4 15h5v5H4Z M15 15h5v5h-5Z',
+  more: 'M5 12h.1 M12 12h.1 M19 12h.1', back: 'M20 12H4 m6-6-6 6 6 6',
+  up: 'm6 14 6-6 6 6', down: 'm6 10 6 6 6-6',
+  edit: 'm4 16 12-12 4 4L8 20H4Z M14 6l4 4', trash: 'M4 6h16 M9 6V3h6v3 M6 6l1 15h10l1-15 M10 10v7 M14 10v7',
+  grip: 'M9 4h.1 M15 4h.1 M9 9h.1 M15 9h.1 M9 14h.1 M15 14h.1 M9 19h.1 M15 19h.1',
   bookmark: 'M5 3h14v18l-7-4-7 4Z M9 8h6 M9 11h4',
   folder: 'M3 6h6l2 2h10v12H3Z', file: 'M6 3h8l4 4v14H6Z M14 3v5h4 M9 12h6 M9 16h6',
   pin: 'M8 3h8l-1 7 3 4H6l3-4Z M12 14v7', search: 'M15 15l5 5 M16.5 10a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0',
@@ -31,6 +37,12 @@ export function icon(name: string): SVGSVGElement {
   const path = document.createElementNS(svg.namespaceURI, 'path')
   path.setAttribute('d', paths[name] || paths.folder)
   svg.append(path)
+  return svg
+}
+export function favoritesRibbonIcon(): SVGSVGElement {
+  const svg = icon('star')
+  svg.classList.add('qa-ribbon-icon')
+  svg.setAttribute('width', '24'); svg.setAttribute('height', '24')
   return svg
 }
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {

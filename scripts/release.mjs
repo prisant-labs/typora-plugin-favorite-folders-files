@@ -15,12 +15,12 @@ export const releaseFiles = [
 ]
 
 const approvedManifest = {
-  id: 'prisant-labs.quick-access',
-  name: 'Quick Access',
-  description: 'Keep pinned and recent folders and files within reach in Typora.',
+  id: 'prisant-labs.favorite-folders-files',
+  name: 'Favorites',
+  description: 'Keep favorite folders and Markdown files within reach in Typora.',
   author: 'Prisant Labs',
   authorUrl: 'https://github.com/prisant-labs',
-  repo: 'prisant-labs/typora-plugin-quick-access-folder-files',
+  repo: 'prisant-labs/typora-plugin-favorite-folders-files',
   minAppVersion: '1.4.0',
   minCoreVersion: '2.10.21',
   platforms: ['win32', 'darwin'],
@@ -28,7 +28,7 @@ const approvedManifest = {
 
 const approvedPackage = {
   private: true,
-  name: 'typora-plugin-quick-access-folder-files',
+  name: 'typora-plugin-favorite-folders-files',
   description: approvedManifest.description,
   author: approvedManifest.author,
   license: 'MIT',
@@ -103,7 +103,7 @@ export async function validateRelease(root = process.cwd(), tag) {
   const archive = await read('plugin.zip')
   assert.ok(archive.length > 0, 'Empty release archive: plugin.zip')
   assert.deepEqual(
-    await read('plugin_typora-quick-access-folder-files.zip'),
+    await read('plugin_typora-favorite-folders-files.zip'),
     archive,
     'Branded ZIP differs from plugin.zip',
   )

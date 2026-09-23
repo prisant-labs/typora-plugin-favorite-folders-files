@@ -1,59 +1,88 @@
-import { applyOperation, createState, locationId, type LocationKind, type State } from '../src/model'
-import { icon, QuickAccessPanelRenderer } from '../src/panel'
+import { applyFavoritesOperation, createFavoritesState, locationId, UNGROUPED_GROUP_ID, type FavoritesState, type LocationKind } from '../src/model'
+import { replayFavoritesDraft } from '../src/editor-state'
+import { FavoritesPanelRenderer } from '../src/favorites-panel'
+import { favoritesRibbonIcon } from '../src/panel'
+import { normalizeHistory, type HistoryInput } from '../src/native-history'
 import { renderSettings } from '../src/settings-ui'
 
 const mount = document.querySelector<HTMLElement>('#panel-mount')!
 const status = document.querySelector<HTMLElement>('#host-status')!
-let state: State
+let state: FavoritesState
 let current: { file?: string; folder?: string }
+let nativeFixture: HistoryInput
+let snapshotFixture: HistoryInput | undefined
+let importedAt: number | undefined
 let unavailable = new Set<string>()
 let error = ''
 let disposeSettings = () => {}
-const renderer = new QuickAccessPanelRenderer(mount, {
-  change(operation) { state = applyOperation(state, operation, 'darwin'); render() },
+let renderer: FavoritesPanelRenderer
+function createRenderer() { return new FavoritesPanelRenderer(mount, {
+  change(operation) { state = applyFavoritesOperation(state, operation, 'darwin'); render() },
+  async commit(draft) {
+    if ((document.querySelector('#fail-save') as HTMLInputElement).checked) throw new Error('Simulated storage failure. Your draft is preserved; turn off the failure control to retry.')
+    state = replayFavoritesDraft(state, draft, 'darwin'); render(); return state
+  },
   open(kind, path) {
-    if (unavailable.has(locationId(kind, path, 'darwin'))) { error = 'This location is unavailable. Its pin has been kept.'; render(); return }
+    if (unavailable.has(locationId(kind, path, 'darwin'))) { error = 'This location is unavailable. Its Favorite has been kept.'; render(); return }
     if ((document.querySelector('#cancel-navigation') as HTMLInputElement).checked) {
       status.textContent = 'Simulated native cancellation: current location and history are unchanged.'; return
     }
     current[kind] = path
-    state = applyOperation(state, { type: 'visit', kind, path, at: Date.now() }, 'darwin')
-    status.textContent = `Simulated completed ${kind} visit. Native save/cancel is owned by Typora.`
+    // Fixture-only host response. Production never maintains a history collector.
+    if (nativeFixture.status === 'ready') nativeFixture.entries = [{ kind, path, openedAt: Date.now() }, ...nativeFixture.entries!.filter(row => row.kind !== kind || row.path !== path)]
+    status.textContent = 'Synthetic host confirmed navigation. Actual Typora Save/Discard/Cancel still requires native testing.'
     error = ''; render()
   },
-  reveal(kind, path) { status.textContent = `Simulated Finder ${kind === 'file' ? 'reveal' : 'open'}: ${path}. No visit recorded.` },
-  settings() { const settings = document.querySelector<HTMLDialogElement>('#settings-dialog')!; settings.showModal(); syncSettings() },
-})
+  reveal(kind, path) { status.textContent = 'Simulated Finder ' + (kind === 'file' ? 'reveal' : 'open') + ': ' + path + '. No navigation recorded.' },
+  settings() { document.querySelector<HTMLDialogElement>('#settings-dialog')!.showModal(); syncSettings() },
+  importHistory: importSnapshot, clearHistory: clearSnapshot,
+}) }
+// One synthetic snapshot drives both the sidebar and the Settings Recent controls.
+function importSnapshot() { snapshotFixture = { ...nativeFixture, entries: nativeFixture.entries?.map(row => ({ ...row })) }; importedAt = nativeFixture.status === 'ready' ? Date.now() : undefined; render() }
+function clearSnapshot() { snapshotFixture = undefined; importedAt = undefined; render() }
 function render() {
-  renderer.update({ state, current, unavailable, error, platform: 'darwin' })
+  renderer.update({ state, current, unavailable, error, platform: 'darwin', history: normalizeHistory(snapshotFixture, 'darwin'), historyImport: { available: true, loading: false, importedAt }, writable: true })
   document.querySelector('#document-path')!.textContent = current.file || 'No document open'
+  if (document.querySelector<HTMLDialogElement>('#settings-dialog')!.open) syncSettings()
 }
 function fixture(name: string) {
-  state = createState(); unavailable = new Set(); error = ''
-  current = { file: '/Projects/Field notes/Working notes.md', folder: '/Projects/Field notes' }
+  renderer?.dispose(); renderer = createRenderer()
+  state = createFavoritesState(); unavailable = new Set(); error = ''; snapshotFixture = undefined; importedAt = undefined
+  current = { file: '/Notes/Ideas.md', folder: '/Library/Research' }
+  const apply = (operation: Parameters<typeof applyFavoritesOperation>[1]) => { state = applyFavoritesOperation(state, operation, 'darwin') }
   if (name !== 'empty') {
-    const locations: Array<[LocationKind, string, boolean]> = [
-      ['folder', '/Projects/Field notes', true], ['folder', '/Projects/Atlas', true],
-      ['folder', '/Library/Reference', true], ['folder', '/Projects/Archive', false],
-      ['folder', '/Projects/Reading', false], ['file', '/Projects/Field notes/Working notes.md', true],
-      ['file', '/Projects/Atlas/README.md', true], ['file', '/Projects/Field notes/README.md', false],
-      ['file', '/Projects/Field notes/Ideas.md', false], ['file', '/Projects/Archive/Research.md', false],
+    apply({ type: 'group:create', id: 'projects', name: 'Projects' }); apply({ type: 'group:create', id: 'writing', name: 'Writing' })
+    const locations: Array<[LocationKind, string, string]> = [
+      ['folder', '/Projects/Atlas', 'projects'], ['file', '/Projects/Atlas/Project brief.md', 'projects'],
+      ['folder', '/Writing/Drafts', 'writing'], ['file', '/Writing/Weekend essay.md', 'writing'], ['folder', '/Notes/Inbox', UNGROUPED_GROUP_ID],
     ]
-    if (name === 'long') locations.push(['file', '/Projects/Field notes/日本語/Café and a deliberately long document name for narrow panels.md', true])
-    locations.forEach(([kind, path, pinned], index) => {
-      state = applyOperation(state, { type: 'visit', kind, path, at: 1000 - index }, 'darwin')
-      if (pinned) state = applyOperation(state, { type: 'pin', kind, path, pinned: true }, 'darwin')
-    })
-    if (name === 'missing') unavailable.add(locationId('folder', '/Library/Reference', 'darwin'))
-    if (name === 'long') state = applyOperation(state, { type: 'preferences', patch: { tab: 'file' } }, 'darwin')
+    if (name === 'long') locations.push(['file', '/Library/日本語/Café and a deliberately long document name for narrow panels.md', 'writing'])
+    locations.forEach(([kind, path, groupId]) => apply({ type: 'favorite:add', kind, path, groupId }))
   }
-  status.textContent = 'Synthetic data. The panel uses the production renderer, model and CSS.'
+  nativeFixture = { status: 'ready', order: 'timestamps', entries: [
+    { kind: 'file', path: '/Notes/Ideas.md', openedAt: Date.now() - 120000 },
+    { kind: 'folder', path: '/Library/Research', openedAt: Date.now() - 300000 },
+    { kind: 'file', path: '/Projects/Atlas/Project brief.md', openedAt: Date.now() - 900000 },
+  ] }
+  if (name === 'empty') { nativeFixture.entries = []; current = {} }
+  if (name === 'saved') current = { file: '/Projects/Atlas/Project brief.md', folder: '/Projects/Atlas' }
+  if (name === 'mixed') current.folder = '/Projects/Atlas'
+  if (name === 'missing') unavailable.add(locationId('folder', '/Writing/Drafts', 'darwin'))
+  if (name === 'unavailable') nativeFixture = { status: 'unavailable', message: 'Native Recent history is not available in this candidate.' }
+  if (name === 'recording-off') nativeFixture = { status: 'recording-off' }
+  if (name === 'per-kind') nativeFixture = { ...nativeFixture, order: 'per-kind', entries: nativeFixture.entries!.map(({ kind, path }) => ({ kind, path })) }
+  status.textContent = 'Synthetic data and simulated import. The panel, editor workflows, model and CSS are production code. Real manual import is Windows-only and requires native verification.'
   render()
 }
 function syncSettings() {
   disposeSettings()
+  const history = normalizeHistory(snapshotFixture, 'darwin'), ordered = history.status === 'ready' && history.order !== 'per-kind'
+  const files = history.entries.filter(row => row.kind === 'file').length
   disposeSettings = renderSettings(document.querySelector<HTMLElement>('#settings-mount')!, state, patch => {
-    state = applyOperation(state, { type: 'preferences', patch }, 'darwin'); render()
+    state = applyFavoritesOperation(state, { type: 'favorites:preferences', patch }, 'darwin'); render()
+  }, {
+    writable: true, version: '0.1.0', author: 'Prisant Labs', repo: 'prisant-labs/typora-plugin-favorite-folders-files', recentAvailable: ordered,
+    recent: { available: true, loading: false, importedAt, files, folders: history.entries.length - files, ordered }, importHistory: importSnapshot, clearHistory: clearSnapshot,
   })
 }
 document.querySelector('#theme')!.addEventListener('change', event => { document.documentElement.dataset.theme = (event.target as HTMLSelectElement).value })
@@ -62,7 +91,7 @@ document.querySelector('#scenario')!.addEventListener('change', event => fixture
 document.querySelector('#reset')!.addEventListener('click', () => fixture((document.querySelector('#scenario') as HTMLSelectElement).value))
 document.querySelector('#settings-dialog')!.addEventListener('close', () => disposeSettings())
 document.querySelector('#close-settings')!.addEventListener('click', () => document.querySelector<HTMLDialogElement>('#settings-dialog')!.close())
-document.querySelector('#ribbon-quick-access')!.replaceChildren(icon('bookmark'))
+document.querySelector('#ribbon-quick-access')!.replaceChildren(favoritesRibbonIcon())
 document.querySelector('#ribbon-files')!.addEventListener('click', () => {
   mount.hidden = true; document.querySelector<HTMLElement>('#native-files')!.hidden = false
   document.querySelector('#ribbon-files')!.setAttribute('aria-pressed', 'true'); document.querySelector('#ribbon-quick-access')!.setAttribute('aria-pressed', 'false')

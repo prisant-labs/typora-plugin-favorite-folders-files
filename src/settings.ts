@@ -1,41 +1,53 @@
-import { Modal, SettingTab } from '@typora-community-plugin/core'
-import type { QuickAccessController } from './controller'
-import { renderSettings } from './settings-ui'
+import { SettingTab } from '@typora-community-plugin/core'
+import type { FavoritesController } from './controller'
+import { renderSettings, type RecentSnapshotActions, type RecentSnapshotStatus, type SettingsMetadata } from './settings-ui'
 
-function bindSettings(container: HTMLElement, controller: QuickAccessController) {
-  let disposeEditor = () => {}; let previous = ''
+export interface FavoritesSettingTabOptions extends SettingsMetadata, RecentSnapshotActions {
+  recentAvailable?: () => boolean
+  recentStatus?: () => RecentSnapshotStatus
+  subscribeRecent?: (listener: () => void) => () => void
+}
+
+const focusKey = (node?: Element | null) => node instanceof HTMLElement ? node.dataset.settingKey ?? node.dataset.action : undefined
+
+function bindSettings(container: HTMLElement, controller: FavoritesController, options: FavoritesSettingTabOptions) {
+  let disposeEditor = () => {}; let previous = ''; let disposed = false
+  // A control disabled mid-action (Importing…) gets focus back on the next rebuild.
+  let pendingFocus: string | undefined
   const status = document.createElement('p'); status.setAttribute('role', 'alert')
-  const editor = document.createElement('div'); container.replaceChildren(editor, status)
-  const unsubscribe = controller.subscribe(snapshot => {
-    status.textContent = snapshot.error || ''; status.hidden = !snapshot.error
-    const next = `${snapshot.state.preferences.recentFiles}:${snapshot.state.preferences.recentFolders}`
+  // The host lets the settings page, and so its preview, fill Core's pane height.
+  const editor = document.createElement('div'); editor.className = 'qa-settings-host'; container.replaceChildren(editor, status)
+  const render = () => {
+    if (disposed) return
+    const state = controller.state, error = controller.error, recentAvailable = options.recentAvailable?.() ?? false, recent = options.recentStatus?.()
+    status.textContent = error || ''; status.hidden = !error
+    const next = JSON.stringify([state.preferences, controller.writable, recentAvailable, recent])
     if (previous === next) return
-    previous = next; disposeEditor()
-    disposeEditor = renderSettings(editor, snapshot.state, patch => controller.change({ type: 'preferences', patch }))
-  })
-  return () => { unsubscribe(); disposeEditor(); container.replaceChildren() }
+    const active = document.activeElement
+    const focused = active instanceof HTMLElement && editor.contains(active)
+      ? focusKey(active)
+      : active === document.body ? focusKey(editor.querySelector('[data-restore-focus="true"]')) ?? pendingFocus : undefined
+    previous = next; pendingFocus = undefined; disposeEditor()
+    disposeEditor = renderSettings(editor, state, patch => controller.change({ type: 'favorites:preferences', patch }), { ...options, writable: controller.writable, recentAvailable, recent })
+    if (focused) {
+      const replacement = Array.from(editor.querySelectorAll<HTMLSelectElement | HTMLButtonElement>('select[data-setting-key], button[data-action]')).find(node => focusKey(node) === focused)
+      if (replacement && !replacement.disabled) replacement.focus(); else pendingFocus = focused
+    }
+  }
+  const unsubscribe = controller.subscribe(render)
+  const unsubscribeRecent = options.subscribeRecent?.(render)
+  return () => { disposed = true; unsubscribe(); unsubscribeRecent?.(); disposeEditor(); container.replaceChildren() }
 }
 
 export class QuickAccessSettingTab extends SettingTab {
-  get name() { return 'Quick Access' }
+  get name() { return 'Favorites' }
   private detach?: () => void
-  constructor(private controller: QuickAccessController) { super() }
-  onshow() { this.detach?.(); this.detach = bindSettings(this.containerEl, this.controller) }
+  constructor(private controller: FavoritesController, private options: FavoritesSettingTabOptions = {}) { super() }
+  onshow() { this.detach?.(); this.detach = bindSettings(this.containerEl, this.controller, this.options) }
   onhide() { this.detach?.(); this.detach = undefined }
   dispose() { this.onhide(); this.containerEl.remove() }
 }
 
-export function openSettings(controller: QuickAccessController, onClose: () => void): Modal {
-  let detach = () => {}; let closed = false
-  const modal = new Modal({ className: 'qa-settings-modal' }).setHeader('Quick Access settings')
-    .setBody(body => { detach = bindSettings(body, controller) })
-    .onClose(() => {
-      if (closed) return
-      closed = true; detach()
-      // Core close() only hides its wrapper. jQuery remove also releases the
-      // core's click/keyup handlers and descendant data before dropping the DOM.
-      $(modal.containerEl).remove()
-      onClose()
-    })
-  modal.open(); return modal
+export function openSettings(app: { commands: { run(id: string, args: unknown[]): unknown } }): unknown {
+  return app.commands.run('settings:open', [])
 }

@@ -1,10 +1,13 @@
-import { Plugin, SidebarPanel, fs, type Modal } from '@typora-community-plugin/core'
-import { QuickAccessController } from './controller'
+import { Plugin, SidebarPanel, fs } from '@typora-community-plugin/core'
+import { FavoritesController } from './controller'
+import { FavoritesRuntime } from './favorites-runtime'
+import { FavoritesPanelRenderer } from './favorites-panel'
 import { NativeHost, type NativeServices } from './host'
-import { IndexedDbStore } from './storage'
-import { icon, QuickAccessPanelRenderer } from './panel'
+import { FavoritesIndexedDbStore } from './storage'
+import { favoritesRibbonIcon } from './panel'
 import { openSettings, QuickAccessSettingTab } from './settings'
 import './style.scss'
+import './settings.scss'
 
 export default class QuickAccessPlugin extends Plugin {
   private cleanup?: () => void
@@ -22,35 +25,48 @@ export default class QuickAccessPlugin extends Plugin {
       invoke: (command, path) => bridge().invoke(command, path),
       showInFinder: path => bridge().showInFinder(path),
     })
-    // The initial candidate can pin current locations; independent recent-history
-    // collection remains off until the user resolves the history-source choice.
-    const controller = new QuickAccessController(host, new IndexedDbStore(app.platform), { collectHistory: false })
-    let disposed = false; let modal: Modal | undefined
-    const settings = () => { if (!disposed && !modal) modal = openSettings(controller, () => { modal = undefined }) }
+    const collection = new FavoritesController(new FavoritesIndexedDbStore(app.platform), app.platform)
+    const runtime = new FavoritesRuntime(host, collection, {
+      readHistory: app.platform === 'win32' ? async () => bridge().invoke('setting.getRecentFiles') : undefined,
+    })
+    let disposed = false
+    const settings = () => { if (!disposed) return openSettings(app) }
     // Fresh class per enable: core keeps a stale private activePanel after removal.
     class QuickAccessSidebarPanel extends SidebarPanel {
       show() { if (!disposed) super.show() }
     }
     const panel = new QuickAccessSidebarPanel(app.workspace.ribbon, app.workspace.sidebar)
     panel.containerEl = document.createElement('div')
-    const ribbonIcon = document.createElement('span'); ribbonIcon.append(icon('bookmark'))
-    panel.addRibbonButton({ id: 'prisant-labs.quick-access', title: 'Quick Access', icon: ribbonIcon })
-    const renderer = new QuickAccessPanelRenderer(panel.containerEl, {
-      change: operation => controller.change(operation), open: (kind, path) => controller.open(kind, path),
-      reveal: (kind, path) => controller.reveal(kind, path), settings,
+    const ribbonIcon = document.createElement('span'); ribbonIcon.append(favoritesRibbonIcon())
+    panel.addRibbonButton({ id: this.manifest.id, title: 'Favorites', icon: ribbonIcon })
+    const renderer = new FavoritesPanelRenderer(panel.containerEl, {
+      change: operation => runtime.change(operation), commit: draft => runtime.commit(draft), open: (kind, path) => runtime.open(kind, path),
+      reveal: (kind, path) => runtime.reveal(kind, path), settings: () => Promise.resolve(settings()),
+      importHistory: () => runtime.importHistory(), clearHistory: () => runtime.clearHistory(),
     })
-    const unsubscribe = controller.subscribe(snapshot => renderer.update(snapshot))
+    const unsubscribe = runtime.subscribe(snapshot => renderer.update(snapshot))
     const removePanel = app.workspace.sidebar.addPanel(panel)
-    const tab = new QuickAccessSettingTab(controller); this.registerSettingTab(tab)
+    const tab = new QuickAccessSettingTab(collection, {
+      version: this.manifest.version, author: this.manifest.author, authorUrl: this.manifest.authorUrl, repo: this.manifest.repo,
+      openFolder: this.manifest.dir ? async () => { await bridge().invoke('shell.openItem', this.manifest.dir) } : undefined,
+      recentAvailable: () => runtime.snapshot.history.status === 'ready' && runtime.snapshot.history.order !== 'per-kind',
+      recentStatus: () => {
+        const { history, historyImport } = runtime.snapshot
+        const files = history.entries.filter(row => row.kind === 'file').length
+        return { available: false, loading: false, ...historyImport, files, folders: history.entries.length - files, ordered: history.status === 'ready' && history.order !== 'per-kind' }
+      },
+      importHistory: () => runtime.importHistory(), clearHistory: () => runtime.clearHistory(),
+      subscribeRecent: listener => runtime.subscribe(() => listener()),
+    }); this.registerSettingTab(tab)
     this.registerCommand({ id: 'toggle', title: 'Toggle panel', scope: 'global', callback: () => { if (!disposed) app.workspace.sidebar.switch(QuickAccessSidebarPanel) } })
-    this.registerCommand({ id: 'settings', title: 'Settings', scope: 'global', callback: settings })
+    this.registerCommand({ id: 'settings', title: 'Settings', scope: 'global', callback: () => { settings() } })
     const cleanup = () => {
       if (disposed) return
-      disposed = true; modal?.close(); tab.dispose(); unsubscribe(); controller.dispose()
+      disposed = true; tab.dispose(); unsubscribe(); runtime.dispose()
       renderer.dispose(); panel.hide(); panel.containerEl.remove(); removePanel()
     }
     this.cleanup = cleanup; this.register(cleanup)
-    void controller.start()
+    void runtime.start()
   }
   onunload(): void { this.cleanup?.(); this.cleanup = undefined }
 }

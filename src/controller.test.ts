@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { QuickAccessController } from './controller'
-import { applyOperation, createState, type Operation } from './model'
+import { FavoritesController, QuickAccessController } from './controller'
+import { applyFavoritesOperation, applyOperation, createFavoritesState, createState, type FavoritesOperation, type Operation } from './model'
+import { replayFavoritesDraft, type FavoritesDraft } from './editor-state'
 
 function fixture() {
   let state = createState()
@@ -65,5 +66,65 @@ describe('observed navigation and persistence', () => {
     await controller.start()
     expect(controller.snapshot.current.file).toBe('C:/Synthetic/one.md')
     expect(f.store.update).not.toHaveBeenCalled(); controller.dispose()
+  })
+})
+
+function favoritesFixture() {
+  let state = createFavoritesState()
+  const store = {
+    read: vi.fn(async () => state),
+    update: vi.fn(async (operation: FavoritesOperation) => state = applyFavoritesOperation(state, operation, 'darwin')),
+    commitDraft: vi.fn(async (draft: FavoritesDraft) => state = replayFavoritesDraft(state, draft, 'darwin')),
+    close: vi.fn(async () => {}),
+  }
+  const controller = new FavoritesController(store, 'darwin')
+  return { controller, store, get saved() { return state } }
+}
+
+describe('Favorites atomic controller', () => {
+  it('saves two independently opened drafts without replacing the first result', async () => {
+    const fixture = favoritesFixture()
+    await fixture.controller.start()
+    const first = fixture.controller.beginDraft()
+    const second = fixture.controller.beginDraft()
+    first.stage({ type: 'group:create', id: 'work', name: 'Work' })
+    second.stage({ type: 'group:create', id: 'personal', name: 'Personal' })
+
+    await fixture.controller.saveDraft(first)
+    await fixture.controller.saveDraft(second)
+    expect(fixture.controller.state.groups.map(group => group.id)).toEqual(['work', 'personal'])
+  })
+
+  it('retains a failed draft and keeps the last confirmed state until retry succeeds', async () => {
+    const fixture = favoritesFixture()
+    await fixture.controller.start()
+    const draft = fixture.controller.beginDraft()
+    draft.stage({ type: 'group:create', id: 'work', name: 'Work' })
+    fixture.store.commitDraft.mockRejectedValueOnce(new Error('Synthetic full database'))
+
+    await expect(fixture.controller.saveDraft(draft)).rejects.toThrow('Synthetic full database')
+    expect(draft.status).toBe('editing')
+    expect(draft.draft.operations).toHaveLength(1)
+    expect(fixture.controller.state).toEqual(createFavoritesState())
+    expect(fixture.controller.error).toContain('Synthetic full database')
+
+    await fixture.controller.saveDraft(draft)
+    expect(fixture.controller.state.groups.map(group => group.id)).toEqual(['work'])
+    expect(fixture.controller.error).toBeUndefined()
+  })
+
+  it('coalesces repeated Save through one store commit', async () => {
+    const fixture = favoritesFixture()
+    await fixture.controller.start()
+    const draft = fixture.controller.beginDraft()
+    draft.stage({ type: 'group:create', id: 'work', name: 'Work' })
+    let release!: (state: ReturnType<typeof createFavoritesState>) => void
+    fixture.store.commitDraft.mockImplementationOnce(() => new Promise(resolve => { release = resolve }))
+
+    const first = fixture.controller.saveDraft(draft)
+    const second = fixture.controller.saveDraft(draft)
+    expect(fixture.store.commitDraft).toHaveBeenCalledOnce()
+    release(applyFavoritesOperation(createFavoritesState(), { type: 'group:create', id: 'work', name: 'Work' }, 'darwin'))
+    await Promise.all([first, second])
   })
 })

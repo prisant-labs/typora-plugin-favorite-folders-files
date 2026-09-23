@@ -1,0 +1,64 @@
+// Core 2.10.21 scrolls `.typ-main` at a definite height, but its tab wrapper is auto height.
+// Scoped with :has so only the Favorites tab changes Core's wrapper.
+.typ-setting-tab:has(> .qa-settings-host) { height: 100%; }
+.qa-settings-host { height: 100%; }
+.qa-settings {
+  --settings-border: rgb(var(--typ-border-color, 190, 190, 190));
+  --settings-text: var(--text-color, #353535);
+  --settings-bg: var(--bg-color, #fff);
+  --settings-muted: var(--text-muted, var(--text-color, #606060));
+  container-type: inline-size;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  max-width: 1170px;
+  padding: 0 8px 16px;
+  color: var(--settings-text);
+  font-size: 13px;
+}
+.qa-settings__masthead { padding: 0 0 9px; }
+.qa-settings__masthead-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 7px 14px; }
+.qa-settings__masthead h2 { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.2; }
+.qa-settings__release-status { display: inline-block; padding: 2px 8px; border: 1px solid var(--settings-border); border-radius: 999px; color: var(--settings-muted); background: color-mix(in srgb, var(--settings-text) 4%, var(--settings-bg)); font-size: 11px; font-weight: 600; white-space: nowrap; }
+.qa-settings__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 9px; margin-top: 7px; color: var(--settings-muted); font-size: 11px; }
+.qa-settings__fact { display: inline-flex; align-items: center; }
+.qa-settings__fact + .qa-settings__fact::before { content: '·'; margin-right: 9px; }
+.qa-settings__meta strong { color: var(--settings-text); font-weight: 600; }
+.qa-settings__meta a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.qa-settings__folder { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; padding: 2px 6px; border: 1px solid var(--settings-border); border-radius: 4px; color: var(--settings-text); background: var(--settings-bg); font: inherit; font-size: 10px; line-height: 1.1; white-space: nowrap; cursor: pointer; }
+.qa-settings__folder svg { flex: none; width: 12px; height: 12px; stroke-width: 1.6; }
+.qa-settings__folder:not(:disabled):hover { background: color-mix(in srgb, var(--settings-text) 6%, var(--settings-bg)); }
+.qa-settings__intro { margin: 4px 0 20px; color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
+.qa-settings__layout { display: flex; flex: 1 0 auto; align-items: stretch; gap: 24px; }
+.qa-settings__controls { flex: 1 1 0; min-width: 0; }
+.qa-settings__section { margin-bottom: 24px; }
+.qa-settings__section > h3 { margin: 0 0 4px; padding-bottom: 8px; border-bottom: 1px solid var(--settings-border); color: var(--settings-text); font-size: 14px; font-weight: 600; }
+.qa-settings .qa-setting-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px 16px; margin: 0; padding: 10px 0; }
+.qa-settings__setting-info { display: flex; flex: 0 1 20rem; flex-direction: column; gap: 3px; min-width: 0; }
+.qa-settings__setting-name { color: var(--settings-text); font-size: 13px; }
+.qa-settings__setting-description { color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
+.qa-settings .qa-setting-row > select { box-sizing: border-box; flex: 0 1 auto; min-width: 120px; max-width: 100%; min-height: 30px; padding: 4px 7px; color: var(--settings-text); background: var(--settings-bg); border: 1px solid var(--settings-border); border-radius: 4px; font: inherit; font-size: 12px; cursor: pointer; }
+.qa-settings__help { color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
+.qa-settings__recent { display: grid; gap: 8px; margin: 4px 0 8px; }
+.qa-settings__recent-status { margin: 0; color: var(--settings-text); font-size: 12px; line-height: 1.5; }
+.qa-settings__recent-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.qa-settings__recent-actions > button { box-sizing: border-box; min-height: 30px; padding: 4px 10px; border: 1px solid var(--settings-border); border-radius: 4px; color: var(--settings-text); background: var(--settings-bg); font: inherit; font-size: 12px; cursor: pointer; }
+.qa-settings__recent-actions > button:not(:disabled):hover { background: color-mix(in srgb, var(--settings-text) 6%, var(--settings-bg)); }
+.qa-settings__status { color: var(--settings-text); font-size: 12px; line-height: 1.5; border-inline-start: 2px solid currentColor; padding-inline-start: 8px; }
+.qa-settings__preview { display: flex; flex-direction: column; flex: 0 0 340px; box-sizing: border-box; min-width: 0; max-width: 390px; padding: 14px; border: 1px solid var(--settings-border); border-radius: 8px; background: color-mix(in srgb, var(--settings-text) 3%, var(--settings-bg)); }
+.qa-settings__preview > h3 { margin: 0 0 6px; color: var(--settings-text); font-size: 15px; }
+.qa-settings__preview > .qa-settings__help { margin: 0 0 12px; }
+.qa-settings .qa-settings__preview-panel { flex: 1 0 460px; min-height: 460px; border: 1px solid var(--settings-border); border-radius: 5px; }
+.qa-settings__preview-status { margin: 8px 0 0; color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
+.qa-settings :is(.qa-setting-row > select, .qa-settings__folder, .qa-settings__recent-actions > button):disabled { cursor: default; opacity: .45; }
+.qa-settings :is(.qa-setting-row > select, .qa-settings__folder, .qa-settings__meta a, .qa-settings__recent-actions > button):focus-visible { outline: 2px solid var(--active-file-border-color, var(--settings-text)); outline-offset: 2px; }
+.qa-settings [hidden] { display: none !important; }
+@container (max-width: 850px) {
+  .qa-settings__layout { flex-direction: column; gap: 16px; }
+  .qa-settings__controls { flex: auto; width: 100%; }
+  .qa-settings__preview { flex: auto; max-width: 390px; width: 100%; }
+}
+@container (max-width: 420px) {
+  .qa-settings__setting-info { flex-basis: 100%; }
+}

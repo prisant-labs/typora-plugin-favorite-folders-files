@@ -1,80 +1,140 @@
-# Initial plugin installation and native checks
+# Favorites candidate installation and native checks
 
-The current package is an unpublished development candidate. Run these checks
-with disposable Markdown documents before relying on it with working files.
-Windows and macOS native acceptance are separate requirements.
+This unpublished development candidate is ready for controlled testing with
+disposable Markdown documents. Windows and macOS acceptance are separate.
+The HTML preview and automated DOM/storage tests do not establish native behavior.
 
 ## Build and install
 
 1. Use Node 22 and the pnpm version declared in `package.json`.
 2. Run `pnpm install --frozen-lockfile`, `pnpm prototype:check`,
    `pnpm test:run`, `pnpm typecheck`, `pnpm run pack`, and `pnpm release:check`.
-3. Install Typora Community Plugin if it is not already installed. The
-   manifest declares core 2.10.21 as the minimum.
-4. Extract `plugin.zip` into a plugin folder named `prisant-labs.quick-access`
-   under the Community Plugin installation's `plugins` directory, or use its
-   vault-local `.typora/plugins/` directory. Enable **Quick Access** in the
-   Community Plugin settings and restart Typora when necessary.
+3. Install Typora Community Plugin if needed. Core 2.10.21 is the tested type/API baseline.
+4. Extract `plugin.zip` into a plugin folder named `prisant-labs.favorite-folders-files`
+   under the Community Plugin installation's `plugins` directory, or a disposable
+   vault-local `.typora/plugins/` directory. Enable **Favorites** in Core settings.
+   Its sidebar is titled **Favorites**.
+
+The identical `plugin_typora-favorite-folders-files.zip` archive can also be
+used. The repository and package slug is `typora-plugin-favorite-folders-files`;
+the plugin folder, plugin ID and saved database are `prisant-labs.favorite-folders-files`.
+
+Earlier unpublished candidates used `prisant-labs.quick-access`. Core treats a
+different ID as a different plugin, so remove or disable that old folder first;
+otherwise two Favorites panels load. Favorites saved under the old ID are not
+carried over. Enable state is per Core scope: enabling under Global Settings does
+not enable the plugin inside a folder that has its own `.typora` settings.
 
 For development, `pnpm install:dev` installs into the repository's disposable
-`test/vault/.typora/` directory and enables the plugin there. Open
-`test/vault/doc.md` in Typora to begin; the script does not launch the app.
-The sibling `test/outside-vault/outside.md` supplies an outside-root target.
+`test/vault/.typora/` fixture. It does not launch Typora. Open `test/vault/doc.md`
+to begin; `test/outside-vault/outside.md` supplies an outside-root target.
+While that folder is open, its vault copy overrides a global install with the
+same ID. Opening fixture folders also adds them to Typora's native Recent list.
+Coordinate installation and testing before touching a real profile.
 
 ## Record the environment
 
-Record plugin commit and ZIP SHA-256, OS, Typora version, core version, core
-tabs enabled/disabled, global/vault config scope, and tester. Store receipts
-locally; avoid real document paths, screenshots or history in commits.
+Record source revision/dirty status, ZIP SHA-256, OS, Typora/Core versions,
+Core tabs enabled/disabled, global/vault configuration scope, and tester.
+Keep real paths, screenshots and native history in local-only receipts.
 
 ## Native checklist
 
-Recent-history collection is inactive in this candidate pending the history-source
-decision. Visit-history assertions below become acceptance checks once collection
-is approved and enabled; they are not expected to pass in the current candidate.
+- Enable, hide/show, disable/re-enable and unload the plugin. Expect one ribbon
+  button and one Favorites panel, with no detached controls or leftover timers.
+- Add the current eligible Markdown file and working folder. Verify selection
+  does not save early; saved cards name their group and Go reveals the shortcut
+  without opening the target. Test all-saved, mixed, unsaved-document and no-folder cases.
+- Create/rename groups, move Favorites, delete a group, reorder groups with
+  arrows and pointer, and arrange a group's Favorites with arrows. Cancel leaves
+  saved membership/order untouched; group deletion transfers members to Ungrouped.
+- Exercise dirty Back/Cancel/Escape/Go, Keep editing, pending inline names,
+  double Save and failed Save. Confirm draft retention and focus restoration.
+- Switch Tabs/Stacked, Outline/Filter, A–Z/Custom and collapsed state. Restart
+  Typora and verify Favorites and presentation preferences persist.
+- Open fixtures within and outside the current root. Verify actual document,
+  folder, tabs and window effects. Make a disposable document dirty and test
+  Save/Discard/Cancel for file and folder transitions. A canceled request must
+  never become Current.
+- Test missing file/folder Favorites and paths with spaces, apostrophes, Unicode,
+  `#` and `?` where valid on the platform. The shortcut survives failure.
+- Reveal a file or open a folder in Explorer/Finder. Verify the Typora Current
+  location does not change merely because of the reveal request.
+- Use the header gear. It should open the real Community Plugin options UI.
+  Select Favorites manually if Core cannot publicly select the plugin tab.
+  Change a shared preference there and verify the panel reflects it.
+- With two windows sharing the same origin/profile, save independent edits,
+  conflict on the same group order, delete a destination while another draft
+  is open, and remove an item while another editor arranges it. Independent
+  changes survive; incompatible changes report a conflict and retain the draft.
+- Verify the actual IndexedDB origin/profile sharing across windows and vaults.
+  Synthetic transaction tests do not establish global sharing in Typora.
+- Review light/dark at 280px and 340px, larger text, long group names and duplicate
+  basenames. Check hover/focus/touch actions, keyboard radio/menu behavior, input
+  composition, narrow popover bounds, drag autoscroll and outside-drop cancellation.
+- Repeat host checks with Core tabs enabled/disabled and separately on macOS.
 
-- Enable the plugin and open Quick Access from the left ribbon or command.
-  Switch to Files and back, hide/show the sidebar and disable/re-enable.
-  Expect one panel/button and no detached or duplicated controls.
-- Pin the current folder and current document. Change sort and collapse state,
-  switch tabs and restart. Verify pins and preferences persist.
-- Open another fixture from Typora while Quick Access is hidden. Verify its
-  Current indicator and recent visit after returning to Quick Access.
-- Open same-root and outside-root Markdown files. Verify actual document,
-  root and tabs. A file request must not issue an extra folder switch.
-- Switch between two disposable folders. Verify the observed root, document,
-  tab and window effects.
-- Make a disposable document dirty. Attempt file and folder transitions;
-  cancel first. Verify the original document/root stay current and the
-  attempted destination gains no visit. Then save and retry.
-- Test a missing file/folder pin. The pin must survive and the UI must explain
-  failure. Test names with spaces, apostrophes, Unicode and `#`.
-- Reveal a file in Explorer/Finder and open a folder's contents there. Neither
-  should change recency or the Typora Current indicator.
-- With two Typora windows, change different pins and preferences, then unpin
-  one in a window with older data. Check updates converge without resurrecting
-  a removed pin. Repeat after changing core global/vault configuration.
-- Confirm the plugin-owned IndexedDB database has the same origin/profile
-  across the tested windows and vaults. Browser transaction tests do not prove
-  Typora origin sharing. An origin difference blocks the global-pins claim.
-- Inspect light/dark and narrow panels, long duplicate basenames and Unicode.
-  Tab through all actions and change tabs with arrow keys.
-- Repeat with core tabs enabled and disabled, and on macOS before declaring
-  two-platform support.
+## Native Recent capability gate
 
-## Initial behavior boundaries
+On Windows, the explicit Import from Typora action calls the native read-only
+Recent getter. It is offered in the sidebar Recent tab until a snapshot exists,
+and always in Settings → Recent, where Refresh and Clear live. Settings shows
+only counts and load time, never paths. The snapshot exists only in memory.
+No polling, navigation event, settings preview or startup loads history. On
+macOS the import is unsupported.
 
-Pins and preferences use the plugin-owned `prisant-labs.quick-access` IndexedDB
-database in Typora's browser profile. Transactions reread current state before
-updates. Malformed data produces an error and is preserved rather than reset.
-Clearing the application's browser data can remove this database.
+Dates are accepted in the forms Typora's own Recent menu sorts (numbers, numeric
+strings and Date objects). To inspect the payload shape without printing paths,
+run this in Typora's DevTools console and record only the table:
 
-Folder switching and file-manager actions use narrowly isolated native bridge
-calls because the core does not export these operations. Native validation is
-required for their platform-specific behavior. Quick Access does not move,
-rename or delete target files.
+```js
+Promise.resolve(JSBridge.invoke('setting.getRecentFiles')).then(r => console.table(['files', 'folders'].flatMap(k => (r?.[k] ?? []).map((row, i) => ({ list: k, i, keys: Object.keys(row).sort().join(' '), date: Object.prototype.toString.call(row.date), sortable: Number.isFinite(Number(row.date)) })))))
+```
 
-Known candidate limitation: after a failed target becomes available again,
-successfully revealing it in the file manager can leave its Unavailable badge
-visible. Observing that location as current in Typora clears the badge. A native
-dispatch alone is not treated as proof that the target exists or opened.
+Using disposable native history, check:
+
+- Import files and folders, empty history and Unicode paths. Verify Markdown
+  filtering, deduplication and newest-first order against Typora's own menu.
+- Navigate outside Favorites; confirm the snapshot stays unchanged until Refresh.
+- Clear native history in Typora, then Refresh: the snapshot must become empty.
+  Before Refresh the old snapshot can remain; its not-live notice is intentional.
+- Clear snapshot while loading, disable/re-enable, and restart. No late result
+  may restore a cleared snapshot. No saved Favorite may be removed or auto-added.
+- Test recording-off behavior explicitly. The bridge's privacy semantics are
+  not yet runtime-verified; no automatic recording-off detection is claimed.
+- If native date fields are missing, All and mixed Recently opened ordering
+  stay unavailable; inspect Files/Folders separately. Dates have no assumed epoch
+  and are not shown as ages. Unsupported payloads show a safe error.
+- Check the header remains in normal flow, the star ribbon is 24px, and all
+  visible plugin labels read Favorites. In settings, inspect compact controls
+  and preview at narrow/wide widths and light/dark themes; close/reopen repeatedly.
+
+The observed Windows consumer contract supports the implementation, but real
+bridge, clear/privacy and native visual acceptance remain unrun. Preview fixtures
+and automated tests do not establish those results. Do not add a history collector.
+
+## Migration and recovery
+
+The IndexedDB database is `prisant-labs.favorite-folders-files`, object store
+`state`. The earlier `prisant-labs.quick-access` database is neither read nor
+deleted; it stays on disk untouched. On the first v2 read of a valid v1 `current` record, every pin becomes
+one Ungrouped Favorite in retained order. The complete original record is copied
+to `recovery:v1` in the same transaction that writes v2 `current`.
+Recent-only v1 entries remain exclusively in the recovery copy.
+
+Before testing an upgrade, back up the browser profile or export the original
+record. Use disposable seeded v1 data to test migration, interrupted writes,
+retry and corrupt/unknown versions. Invalid records disable unsafe writes;
+they are not reset to defaults. Verify recovery data independently.
+
+An older plugin binary cannot read v2 state. Rollback is an explicit recovery
+operation: close all plugin windows, preserve the v2 record separately, validate
+the v1 backup, restore it as `current`, then reopen the matching older binary.
+No automatic restore/delete control is shipped. Clearing application browser
+data can remove both records.
+
+## Filesystem boundary
+
+The plugin navigates to targets and asks the OS to reveal them. It does not move,
+rename or delete files/folders. Native bridge dispatch completion is not proof
+of a completed navigation; Current derives only from observed host state.

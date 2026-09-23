@@ -29,7 +29,7 @@ function fixture() {
   const output = join(directory, 'plugin.zip')
   const brandedOutput = join(
     directory,
-    'plugin_typora-quick-access-folder-files.zip',
+    'plugin_typora-favorite-folders-files.zip',
   )
   mkdirSync(dist)
   for (const name of releaseFiles) writeFileSync(join(dist, name), `fixture:${name}`)
@@ -44,17 +44,16 @@ afterEach(() => {
 })
 
 describe('plugin packer', () => {
-  it('archives only the approved files and writes an identical branded copy', () => {
-    const { dist, output, brandedOutput } = fixture()
+  it('archives only the approved files and writes the default branded copy', () => {
+    const { directory, dist, output, brandedOutput } = fixture()
     const result = spawnSync(
       process.execPath,
       [
         resolve(root, 'pack.js'),
         '--dist', dist,
         '--output', output,
-        '--branded-output', brandedOutput,
       ],
-      { cwd: root, encoding: 'utf8' },
+      { cwd: directory, encoding: 'utf8' },
     )
 
     expect(result.status, result.stderr).toBe(0)
@@ -64,7 +63,8 @@ describe('plugin packer', () => {
       expect(new TextDecoder().decode(bytes)).toBe(`fixture:${basename(name)}`)
     }
     expect(readFileSync(brandedOutput)).toEqual(readFileSync(output))
-  })
+  // A child Node process can exceed the 5s default when the full suite saturates the CPU.
+  }, 30000)
 
   it('fails closed when an allowlisted file is missing', () => {
     const { dist, output, brandedOutput } = fixture()

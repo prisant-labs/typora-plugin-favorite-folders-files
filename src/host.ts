@@ -20,7 +20,7 @@ interface NativeApp {
 }
 export interface NativeServices {
   stat(path: string): Promise<{ isDirectory(): boolean; isFile(): boolean }>
-  invoke(command: string, path: string): unknown
+  invoke(command: string, path?: string): unknown
   showInFinder(path: string): unknown
   isDirectory?(path: string): Promise<boolean>
 }
@@ -51,17 +51,17 @@ export class NativeHost implements Host {
     // Core 2.10.21 macOS stat/access interpolate paths into shell commands.
     // Dispatch the native request without those checks; Typora handles missing paths.
     if (this.platform === 'darwin') {
-      if (kind === 'folder' && this.services.isDirectory && !(await this.services.isDirectory(path))) throw new Error('Unavailable folder. Your pin is preserved.')
+      if (kind === 'folder' && this.services.isDirectory && !(await this.services.isDirectory(path))) throw new Error('Unavailable folder. Your Favorite is preserved.')
       return
     }
     try {
       const info = await this.services.stat(path)
       if (kind === 'file' ? !info.isFile() : !info.isDirectory()) throw new Error('Wrong location kind')
-    } catch { throw new Error(`Unavailable ${kind}. It may have moved or access may be denied. Your pin is preserved.`) }
+    } catch { throw new Error(`Unavailable ${kind}. It may have moved or access may be denied. Your Favorite is preserved.`) }
   }
   async open(kind: LocationKind, path: string) {
     const nativePath = this.nativePath(path)
-    if (kind === 'file' && !isMarkdown(nativePath)) throw new Error('Quick Access opens Markdown files only.')
+    if (kind === 'file' && !isMarkdown(nativePath)) throw new Error('Favorites opens Markdown files only.')
     await this.check(kind, nativePath)
     if (this.disposed) return
     if (kind === 'folder') await this.services.invoke('controller.switchFolder', nativePath)

@@ -27,7 +27,7 @@ export async function renderPrototype(sourceRoot = root) {
     write: false, format: 'iife', platform: 'browser', target: 'es2020',
     minify: true, charset: 'ascii', legalComments: 'none',
   })
-  const css = ['prototype/shell.scss', 'src/style.scss'].map(file => compile(path.join(sourceRoot, file), { style: 'compressed' }).css).join('\n')
+  const css = ['prototype/shell.scss', 'src/style.scss', 'src/settings.scss'].map(file => compile(path.join(sourceRoot, file), { style: 'compressed' }).css).join('\n')
   const values = {
     VERSION: escapeHtml(manifest.version), FINGERPRINT: hash.digest('hex'),
     LICENSE: escapeHtml(await read('LICENSE.md')),
