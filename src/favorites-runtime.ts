@@ -1,7 +1,7 @@
 import { FavoritesController } from './controller'
 import type { FavoritesDraft } from './editor-state'
 import type { FavoritesPanelSnapshot } from './favorites-panel'
-import { isMarkdown, type Host } from './host'
+import { isMarkdown, type Host, type OpenOptions } from './host'
 import { locationId, normalizePath, type FavoritesOperation, type LocationKind } from './model'
 import { normalizeHistory } from './native-history'
 import { parseTyporaRecent } from './native-import'
@@ -22,19 +22,28 @@ export class FavoritesRuntime {
   private historyGeneration = 0
   private historyTask?: Promise<void>
   private cancelHistoryRead?: () => void
-  private historyLoading = false
-  private importedAt?: number
+  private historyReadAt?: number
   private historyError?: string
 
-  constructor(private readonly host: Host, readonly collection: FavoritesController, private readonly options: { pollMilliseconds?: number; readHistory?: () => Promise<unknown>; historyTimeoutMilliseconds?: number } = {}) {
+  constructor(private readonly host: Host, readonly collection: FavoritesController, private readonly options: {
+    pollMilliseconds?: number
+    readHistory?: () => Promise<unknown>
+    historyTimeoutMilliseconds?: number
+    /** Minimum gap between background reads of Typora's Recent list. */
+    historyMinIntervalMilliseconds?: number
+    /** Typora's Recent list is read only while the panel is on screen. */
+    isVisible?: () => boolean
+  } = {}) {
     this.history = normalizeHistory(undefined, host.platform)
   }
+
+  private get historyAvailable() { return this.host.platform === 'win32' && Boolean(this.options.readHistory) && !this.disposed }
 
   get snapshot(): FavoritesPanelSnapshot {
     return {
       state: this.collection.state, platform: this.host.platform, current: { ...this.current },
       history: { ...this.history, entries: this.history.entries.map(row => ({ ...row })) },
-      historyImport: { available: this.host.platform === 'win32' && Boolean(this.options.readHistory) && !this.disposed, loading: this.historyLoading, importedAt: this.importedAt, error: this.historyError },
+      historySource: { available: this.historyAvailable, loading: Boolean(this.historyTask), error: this.historyError },
       writable: this.collection.writable && !this.disposed,
       error: this.collection.error || this.actionError, unavailable: new Set(this.unavailable),
     }
@@ -79,19 +88,23 @@ export class FavoritesRuntime {
   async start(): Promise<void> {
     if (this.started || this.disposed) return
     this.started = true
-    this.disposers.push(this.collection.subscribe(() => this.publish()), this.host.subscribe(() => this.observe()))
+    // Opening a file or folder changes Typora's Recent list, so navigation also re-reads it.
+    this.disposers.push(this.collection.subscribe(() => this.publish()), this.host.subscribe(() => { this.observe(); void this.syncHistory() }))
+    // The storage poll never reads Typora's Recent list: show, focus and navigation cover every change.
     const refresh = () => { void this.refresh() }
+    const refreshAll = () => { refresh(); void this.syncHistory() }
     if (typeof window !== 'undefined') {
-      const visible = () => { if (!document.hidden) refresh() }
-      window.addEventListener('focus', refresh)
+      const visible = () => { if (!document.hidden) refreshAll() }
+      window.addEventListener('focus', refreshAll)
       document.addEventListener('visibilitychange', visible)
-      this.disposers.push(() => { window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', visible) })
+      this.disposers.push(() => { window.removeEventListener('focus', refreshAll); document.removeEventListener('visibilitychange', visible) })
     }
     if ((this.options.pollMilliseconds ?? 2000) > 0) {
       const timer = setInterval(refresh, this.options.pollMilliseconds ?? 2000)
       this.disposers.push(() => clearInterval(timer))
     }
     this.observe()
+    void this.syncHistory(true)
     await this.refresh()
   }
 
@@ -106,12 +119,17 @@ export class FavoritesRuntime {
   }
 
   async idle(): Promise<void> { await this.collection.idle(); await this.refreshing }
-  /** Explicit user action only. Never called by focus, polling, or navigation. */
-  importHistory(): Promise<void> {
-    if (this.disposed || this.host.platform !== 'win32' || !this.options.readHistory) return Promise.resolve()
+  /**
+   * Live view of Typora's own Recent list: read while the panel is visible, kept in memory,
+   * never saved or written back. Background triggers are throttled; `force` skips the throttle.
+   */
+  syncHistory(force = false): Promise<void> {
+    if (!this.historyAvailable || !(this.options.isVisible?.() ?? true)) return Promise.resolve()
     if (this.historyTask) return this.historyTask
-    const generation = ++this.historyGeneration
-    this.historyLoading = true; this.historyError = undefined
+    const readAt = this.historyReadAt
+    if (!force && readAt !== undefined && Date.now() - readAt < (this.options.historyMinIntervalMilliseconds ?? 1000)) return Promise.resolve()
+    const generation = ++this.historyGeneration, firstRead = this.history.status !== 'ready'
+    const before = JSON.stringify([this.history, this.historyError])
     let timer: ReturnType<typeof setTimeout>
     const cancelled = Symbol('cancelled'), timeout = Symbol('timeout')
     const boundary = new Promise<symbol>(resolve => {
@@ -122,37 +140,32 @@ export class FavoritesRuntime {
       if (this.disposed || generation !== this.historyGeneration || raw === cancelled) return
       if (raw === timeout) throw new Error('timeout')
       this.history = parseTyporaRecent(raw, this.host.platform)
-      this.importedAt = this.history.status === 'ready' ? Date.now() : undefined
       this.historyError = this.history.status === 'ready' ? undefined : this.history.message
     }).catch(error => {
       if (this.disposed || generation !== this.historyGeneration) return
-      this.history = normalizeHistory(undefined, this.host.platform); this.importedAt = undefined
-      this.historyError = error instanceof Error && error.message === 'timeout' ? 'Reading Typora Recent timed out. Try again.' : 'Could not read Typora Recent. Try again.'
+      this.history = normalizeHistory(undefined, this.host.platform)
+      this.historyError = error instanceof Error && error.message === 'timeout' ? 'Reading Typora\'s Recent list timed out. It will retry.' : 'Could not read Typora\'s Recent list. It will retry.'
     }).finally(() => {
       clearTimeout(timer)
       if (generation !== this.historyGeneration) return
-      this.historyTask = undefined; this.cancelHistoryRead = undefined; this.historyLoading = false; this.publish()
+      this.historyTask = undefined; this.cancelHistoryRead = undefined; this.historyReadAt = Date.now()
+      // An unchanged list is not republished, so background reads never disturb the panel.
+      if (firstRead || JSON.stringify([this.history, this.historyError]) !== before) this.publish()
     })
-    this.publish()
+    if (firstRead) this.publish()
     return this.historyTask
-  }
-
-  clearHistory(): void {
-    this.historyGeneration++; this.cancelHistoryRead?.(); this.cancelHistoryRead = undefined; this.historyTask = undefined
-    this.history = normalizeHistory(undefined, this.host.platform); this.historyLoading = false; this.importedAt = undefined; this.historyError = undefined
-    this.publish()
   }
 
   change(operation: FavoritesOperation) { return this.collection.change(operation) }
   commit(draft: FavoritesDraft) { return this.collection.commit(draft) }
-  open(kind: LocationKind, path: string) { return this.navigate('open', kind, path) }
+  open(kind: LocationKind, path: string, options?: OpenOptions) { return this.navigate('open', kind, path, options) }
   reveal(kind: LocationKind, path: string) { return this.navigate('reveal', kind, path) }
 
-  private async navigate(action: 'open' | 'reveal', kind: LocationKind, path: string): Promise<void> {
+  private async navigate(action: 'open' | 'reveal', kind: LocationKind, path: string, options?: OpenOptions): Promise<void> {
     if (this.disposed) return
     const generation = ++this.actionGeneration
     try {
-      await this.host[action](kind, path)
+      await (action === 'open' ? this.host.open(kind, path, options) : this.host.reveal(kind, path))
       if (this.disposed || generation !== this.actionGeneration) return
       this.actionError = undefined; this.failedTarget = undefined
     } catch (error) {
@@ -169,7 +182,8 @@ export class FavoritesRuntime {
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
-    this.clearHistory()
+    this.historyGeneration++; this.cancelHistoryRead?.(); this.cancelHistoryRead = undefined; this.historyTask = undefined
+    this.history = normalizeHistory(undefined, this.host.platform); this.historyError = undefined
     this.disposers.splice(0).forEach(dispose => dispose())
     this.host.dispose?.()
     this.listeners.clear()

@@ -40,19 +40,14 @@
 .qa-settings__setting-description { color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
 .qa-settings .qa-setting-row > select { box-sizing: border-box; flex: 0 1 auto; min-width: 120px; max-width: 100%; min-height: 30px; padding: 4px 7px; color: var(--settings-text); background: var(--settings-bg); border: 1px solid var(--settings-border); border-radius: 4px; font: inherit; font-size: 12px; cursor: pointer; }
 .qa-settings__help { color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
-.qa-settings__recent { display: grid; gap: 8px; margin: 4px 0 8px; }
-.qa-settings__recent-status { margin: 0; color: var(--settings-text); font-size: 12px; line-height: 1.5; }
-.qa-settings__recent-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.qa-settings__recent-actions > button { box-sizing: border-box; min-height: 30px; padding: 4px 10px; border: 1px solid var(--settings-border); border-radius: 4px; color: var(--settings-text); background: var(--settings-bg); font: inherit; font-size: 12px; cursor: pointer; }
-.qa-settings__recent-actions > button:not(:disabled):hover { background: color-mix(in srgb, var(--settings-text) 6%, var(--settings-bg)); }
 .qa-settings__status { color: var(--settings-text); font-size: 12px; line-height: 1.5; border-inline-start: 2px solid currentColor; padding-inline-start: 8px; }
 .qa-settings__preview { display: flex; flex-direction: column; flex: 0 0 340px; box-sizing: border-box; min-width: 0; max-width: 390px; padding: 14px; border: 1px solid var(--settings-border); border-radius: 8px; background: color-mix(in srgb, var(--settings-text) 3%, var(--settings-bg)); }
 .qa-settings__preview > h3 { margin: 0 0 6px; color: var(--settings-text); font-size: 15px; }
 .qa-settings__preview > .qa-settings__help { margin: 0 0 12px; }
 .qa-settings .qa-settings__preview-panel { flex: 1 0 460px; min-height: 460px; border: 1px solid var(--settings-border); border-radius: 5px; }
 .qa-settings__preview-status { margin: 8px 0 0; color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
-.qa-settings :is(.qa-setting-row > select, .qa-settings__folder, .qa-settings__recent-actions > button):disabled { cursor: default; opacity: .45; }
-.qa-settings :is(.qa-setting-row > select, .qa-settings__folder, .qa-settings__meta a, .qa-settings__recent-actions > button):focus-visible { outline: 2px solid var(--active-file-border-color, var(--settings-text)); outline-offset: 2px; }
+.qa-settings :is(.qa-setting-row > select, .qa-settings__folder):disabled { cursor: default; opacity: .45; }
+.qa-settings :is(.qa-setting-row > select, .qa-settings__folder, .qa-settings__meta a):focus-visible { outline: 2px solid var(--active-file-border-color, var(--settings-text)); outline-offset: 2px; }
 .qa-settings [hidden] { display: none !important; }
 @container (max-width: 850px) {
   .qa-settings__layout { flex-direction: column; gap: 16px; }

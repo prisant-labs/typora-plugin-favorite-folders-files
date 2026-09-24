@@ -10,13 +10,7 @@ export interface SettingsMetadata {
   repo?: string
   openFolder?: () => void | Promise<unknown>
 }
-/** Counts and timing only: Settings never receives snapshot paths. */
-export interface RecentSnapshotStatus { available: boolean; loading: boolean; importedAt?: number; error?: string; files: number; folders: number; ordered: boolean }
-export interface RecentSnapshotActions {
-  importHistory?: () => void | Promise<unknown>
-  clearHistory?: () => void
-}
-export interface SettingsUiOptions extends SettingsMetadata, RecentSnapshotActions { writable?: boolean; recentAvailable?: boolean; recent?: RecentSnapshotStatus }
+export interface SettingsUiOptions extends SettingsMetadata { writable?: boolean; recentAvailable?: boolean }
 
 function safeLink(value?: string): string | undefined {
   if (!value) return undefined
@@ -31,36 +25,6 @@ function repositoryLink(value?: string): string | undefined {
   return url.protocol === 'https:' && url.hostname === 'github.com' && /^\/[\w.-]+\/[\w.-]+\/?$/.test(url.pathname) ? link : undefined
 }
 
-const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`
-
-/** Real session snapshot controls. The neighboring preview keeps its own synthetic data. */
-function recentControls(recent: RecentSnapshotStatus, actions: RecentSnapshotActions, disposed: () => boolean, pageStatus: HTMLElement): HTMLElement {
-  const wrapper = document.createElement('div'); wrapper.className = 'qa-settings__recent'
-  const line = document.createElement('p'); line.className = 'qa-settings__recent-status'; line.dataset.recentStatus = ''; line.setAttribute('role', 'status')
-  if (recent.loading) line.textContent = 'Importing from Typora…'
-  else if (recent.importedAt !== undefined) {
-    const loaded = new Date(recent.importedAt), time = document.createElement('time'); time.dateTime = loaded.toISOString(); time.textContent = loaded.toLocaleTimeString()
-    line.append('Snapshot loaded ', time, `: ${plural(recent.files, 'file')}, ${plural(recent.folders, 'folder')}. Not live.`)
-  } else line.textContent = recent.available ? 'No snapshot imported in this session.' : 'Manual import is available only in supported Windows Typora windows.'
-  const buttons = document.createElement('div'); buttons.className = 'qa-settings__recent-actions'
-  const button = (label: string, action: string, run: () => unknown) => {
-    const node = document.createElement('button'); node.type = 'button'; node.textContent = label; node.dataset.action = action
-    const fail = (error: unknown) => { if (!disposed()) { pageStatus.textContent = error instanceof Error ? error.message : 'The Recent snapshot action could not be completed.'; pageStatus.hidden = false } }
-    node.addEventListener('click', () => {
-      if (disposed() || node.disabled) return
-      try { Promise.resolve(run()).catch(fail) } catch (error) { fail(error) }
-    })
-    buttons.append(node); return node
-  }
-  const load = button(recent.loading ? 'Importing…' : recent.importedAt !== undefined ? 'Refresh snapshot' : 'Import from Typora', 'history-import', () => actions.importHistory?.())
-  load.disabled = !recent.available || recent.loading || !actions.importHistory
-  const clear = button('Clear snapshot', 'history-clear', () => actions.clearHistory?.())
-  clear.disabled = (recent.importedAt === undefined && !recent.loading) || !actions.clearHistory
-  wrapper.append(line, buttons)
-  if (recent.error) { const error = document.createElement('p'); error.className = 'qa-settings__help'; error.setAttribute('role', 'alert'); error.textContent = recent.error; wrapper.append(error) }
-  return wrapper
-}
-
 /** Shared preference controls for the registered Core settings tab and preview. */
 export function renderSettings(container: HTMLElement, state: FavoritesState, onPreferencesPatch: (patch: Partial<FavoritesPreferences>) => void | Promise<unknown>, options: SettingsUiOptions = {}): () => void {
   let disposed = false
@@ -69,8 +33,8 @@ export function renderSettings(container: HTMLElement, state: FavoritesState, on
   const masthead = document.createElement('div'); masthead.className = 'qa-settings__masthead'
   const top = document.createElement('div'); top.className = 'qa-settings__masthead-top'
   const heading = document.createElement('h2'); heading.textContent = 'Favorites'
-  const badge = document.createElement('span'); badge.className = 'qa-settings__release-status'; badge.dataset.releaseStatus = ''; badge.textContent = 'Development build'
-  badge.title = 'Local candidate. This page does not check for a published release.'
+  const badge = document.createElement('span'); badge.className = 'qa-settings__release-status'; badge.dataset.releaseStatus = ''; badge.textContent = 'Early release'
+  badge.title = 'Favorites is an early release. This page does not check for updates; please report problems on GitHub.'
   top.append(heading, badge)
   const meta = document.createElement('div'); meta.className = 'qa-settings__meta'
   // Each fact owns its separator, so the dot never lands inside a link or a button.
@@ -145,14 +109,11 @@ export function renderSettings(container: HTMLElement, state: FavoritesState, on
     label.append(text, input); sections[key === 'layout' || key === 'groupView' ? 'Display' : 'Ordering'].append(label)
   }
   const recentHelp = document.createElement('p'); recentHelp.className = 'qa-settings__help'
-  recentHelp.textContent = 'Import from Typora copies Typora\'s Recent list for this session only. Favorites never saves the copy or changes Typora\'s history. Refresh after opening or clearing items in Typora; Clear forgets the copy.'
-  sections.Recent.append(recentHelp)
-  if (options.recent) sections.Recent.append(recentControls(options.recent, options, () => disposed, status))
+  recentHelp.textContent = 'Recent shows Typora\'s own Recent list (File → Open Recent), read while the Favorites panel is open. Favorites never saves the list or changes it. It is currently available in Typora for Windows.'
   const capability = document.createElement('p'); capability.className = 'qa-settings__help'; capability.dataset.recentCapability = ''
-  capability.textContent = options.recentAvailable ? 'Imported snapshot ordering is available until the snapshot is cleared or this session ends.'
-    : options.recent?.importedAt !== undefined ? 'This snapshot has no shared file and folder dates, so Recently opened ordering is unavailable.'
-      : 'Import a snapshot to enable Recently opened ordering.'
-  sections.Recent.append(capability)
+  capability.textContent = options.recentAvailable ? 'Recently opened ordering is available: every entry in Typora\'s Recent list has a date.'
+    : 'Recently opened ordering needs a date on every entry in Typora\'s Recent list. Until then, Favorites keeps your Custom order.'
+  sections.Recent.append(recentHelp, capability)
   let preview: FavoritesSettingsPreview | undefined = new FavoritesSettingsPreview(state.preferences)
   layout.append(controls, preview.element); root.append(masthead, help, status, layout); container.replaceChildren(root)
   // Core can hide/reopen its modal without calling the tab's onhide/onshow.

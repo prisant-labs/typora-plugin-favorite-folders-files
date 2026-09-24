@@ -11,7 +11,7 @@ vi.mock('./storage', () => ({ FavoritesIndexedDbStore: class {
   async close() {}
 } }))
 import QuickAccessPlugin from './main'
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); document.body.replaceChildren() })
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); document.body.replaceChildren() })
 
 describe('plugin lifecycle', () => {
   it('registers ribbon, sidebar, settings, and commands; unload removes DOM and prevents stale resurrection', async () => {
@@ -34,27 +34,25 @@ describe('plugin lifecycle', () => {
     expect(panel.ribbonButton).toMatchObject({ id: 'prisant-labs.favorite-folders-files', title: 'Favorites' })
     expect(panel.ribbonButton.icon.querySelector('svg')?.getAttribute('width')).toBe('24')
     expect(panel.ribbonButton.icon.querySelector('svg')?.classList.contains('qa-ribbon-icon')).toBe(true)
-    panel.show(); expect(document.querySelector('.qa-favorites')).not.toBeNull()
+    // While the panel is hidden, Typora's Recent list is not read.
+    expect(invoke).not.toHaveBeenCalled()
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{}] as unknown as DOMRectList)
+    panel.show(); await vi.advanceTimersByTimeAsync(0)
+    expect(document.querySelector('.qa-favorites')).not.toBeNull()
     expect(panel.containerEl.querySelector('h2')?.textContent).toBe('Favorites')
     expect(app.workspace.on).toHaveBeenCalledWith('file:open', expect.any(Function))
     const commands = (plugin as unknown as { commands: { title: string; callback(): void }[] }).commands
     expect(commands.map(command => command.title)).toEqual(['Favorites: Toggle panel', 'Favorites: Settings'])
-    expect(invoke).not.toHaveBeenCalled()
+    expect(invoke).toHaveBeenCalledExactlyOnceWith('setting.getRecentFiles')
     panel.containerEl.querySelector<HTMLButtonElement>('[data-key="tab-recent"]')!.click()
     await vi.advanceTimersByTimeAsync(0)
-    panel.containerEl.querySelector<HTMLButtonElement>('[data-key="history-import"]')!.click()
-    await vi.advanceTimersByTimeAsync(0)
-    expect(invoke).toHaveBeenCalledExactlyOnceWith('setting.getRecentFiles')
     expect(panel.containerEl.textContent).toContain('Recent.md')
-    expect(panel.containerEl.querySelector('[data-key="history-import"]')).toBeNull()
+    expect(panel.containerEl.querySelector('[data-key="history-import"], [data-key="history-clear"]')).toBeNull()
     const tab = (plugin as unknown as { tabs: Array<{ containerEl: HTMLElement; onshow(): void; onhide(): void }> }).tabs[0]
     document.body.append(tab.containerEl); tab.onshow()
-    const recentStatus = () => tab.containerEl.querySelector('[data-recent-status]')!.textContent
-    expect(recentStatus()).toContain('1 file, 0 folders'); expect(recentStatus()).not.toContain('Recent.md')
-    tab.containerEl.querySelector<HTMLButtonElement>('[data-action="history-clear"]')!.click()
-    expect(recentStatus()).toContain('No snapshot imported')
-    expect(panel.containerEl.textContent).not.toContain('Recent.md')
-    expect(panel.containerEl.querySelector('[data-key="history-import"]')).not.toBeNull()
+    expect(tab.containerEl.querySelector('[data-recent-capability]')?.textContent).toContain('is available')
+    expect(tab.containerEl.querySelector('[data-action="history-import"], [data-action="history-clear"]')).toBeNull()
+    expect(tab.containerEl.textContent).not.toContain('Recent.md')
     tab.onhide()
     commands[1].callback(); commands[1].callback()
     expect(app.commands.run).toHaveBeenCalledTimes(2)

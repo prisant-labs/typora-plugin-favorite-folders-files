@@ -10,8 +10,6 @@ const status = document.querySelector<HTMLElement>('#host-status')!
 let state: FavoritesState
 let current: { file?: string; folder?: string }
 let nativeFixture: HistoryInput
-let snapshotFixture: HistoryInput | undefined
-let importedAt: number | undefined
 let unavailable = new Set<string>()
 let error = ''
 let disposeSettings = () => {}
@@ -35,19 +33,15 @@ function createRenderer() { return new FavoritesPanelRenderer(mount, {
   },
   reveal(kind, path) { status.textContent = 'Simulated Finder ' + (kind === 'file' ? 'reveal' : 'open') + ': ' + path + '. No navigation recorded.' },
   settings() { document.querySelector<HTMLDialogElement>('#settings-dialog')!.showModal(); syncSettings() },
-  importHistory: importSnapshot, clearHistory: clearSnapshot,
 }) }
-// One synthetic snapshot drives both the sidebar and the Settings Recent controls.
-function importSnapshot() { snapshotFixture = { ...nativeFixture, entries: nativeFixture.entries?.map(row => ({ ...row })) }; importedAt = nativeFixture.status === 'ready' ? Date.now() : undefined; render() }
-function clearSnapshot() { snapshotFixture = undefined; importedAt = undefined; render() }
 function render() {
-  renderer.update({ state, current, unavailable, error, platform: 'darwin', history: normalizeHistory(snapshotFixture, 'darwin'), historyImport: { available: true, loading: false, importedAt }, writable: true })
+  renderer.update({ state, current, unavailable, error, platform: 'darwin', history: normalizeHistory(nativeFixture, 'darwin'), historySource: { available: true, loading: false }, writable: true })
   document.querySelector('#document-path')!.textContent = current.file || 'No document open'
   if (document.querySelector<HTMLDialogElement>('#settings-dialog')!.open) syncSettings()
 }
 function fixture(name: string) {
   renderer?.dispose(); renderer = createRenderer()
-  state = createFavoritesState(); unavailable = new Set(); error = ''; snapshotFixture = undefined; importedAt = undefined
+  state = createFavoritesState(); unavailable = new Set(); error = ''
   current = { file: '/Notes/Ideas.md', folder: '/Library/Research' }
   const apply = (operation: Parameters<typeof applyFavoritesOperation>[1]) => { state = applyFavoritesOperation(state, operation, 'darwin') }
   if (name !== 'empty') {
@@ -71,19 +65,15 @@ function fixture(name: string) {
   if (name === 'unavailable') nativeFixture = { status: 'unavailable', message: 'Native Recent history is not available in this candidate.' }
   if (name === 'recording-off') nativeFixture = { status: 'recording-off' }
   if (name === 'per-kind') nativeFixture = { ...nativeFixture, order: 'per-kind', entries: nativeFixture.entries!.map(({ kind, path }) => ({ kind, path })) }
-  status.textContent = 'Synthetic data and simulated import. The panel, editor workflows, model and CSS are production code. Real manual import is Windows-only and requires native verification.'
+  status.textContent = 'Synthetic data and a simulated live Recent list. The panel, editor workflows, model and CSS are production code. Reading Typora\'s real Recent list is Windows-only and requires native verification.'
   render()
 }
 function syncSettings() {
   disposeSettings()
-  const history = normalizeHistory(snapshotFixture, 'darwin'), ordered = history.status === 'ready' && history.order !== 'per-kind'
-  const files = history.entries.filter(row => row.kind === 'file').length
+  const history = normalizeHistory(nativeFixture, 'darwin'), ordered = history.status === 'ready' && history.order !== 'per-kind'
   disposeSettings = renderSettings(document.querySelector<HTMLElement>('#settings-mount')!, state, patch => {
     state = applyFavoritesOperation(state, { type: 'favorites:preferences', patch }, 'darwin'); render()
-  }, {
-    writable: true, version: '0.1.0', author: 'Prisant Labs', repo: 'prisant-labs/typora-plugin-favorite-folders-files', recentAvailable: ordered,
-    recent: { available: true, loading: false, importedAt, files, folders: history.entries.length - files, ordered }, importHistory: importSnapshot, clearHistory: clearSnapshot,
-  })
+  }, { writable: true, version: '0.1.0', author: 'Prisant Labs', repo: 'prisant-labs/typora-plugin-favorite-folders-files', recentAvailable: ordered })
 }
 document.querySelector('#theme')!.addEventListener('change', event => { document.documentElement.dataset.theme = (event.target as HTMLSelectElement).value })
 document.querySelector('#panel-width')!.addEventListener('change', event => { document.documentElement.style.setProperty('--panel-width', (event.target as HTMLSelectElement).value + 'px') })

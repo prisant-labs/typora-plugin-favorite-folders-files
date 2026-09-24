@@ -9,11 +9,11 @@ The preview includes light/dark themes, 280/340/400-pixel panel widths,
 everyday/first-use/long-path scenarios, all-saved and mixed Add states, native
 history unavailable/recording-off/per-kind states, and simulated cancellation
 or save failure. Add, Move, Manage groups and Arrange Favorites use the same
-draft and atomic replay code as the native plugin. Recent entries are synthetic;
-use Import from Typora in the Recent tab or the settings dialog to load the
-simulated session snapshot. Once loaded, Refresh and Clear live in the settings
-dialog, as in the plugin. The settings page uses the shared production controls
-and its own isolated synthetic preview. Real manual import is Windows-only.
+draft and atomic replay code as the native plugin. Recent entries are a
+synthetic stand-in for Typora's live Recent list; opening a location updates
+them, as Typora's list would. The settings page uses the shared production
+controls and its own isolated synthetic preview. Reading Typora's real Recent
+list is Windows-only.
 These controls are outside the plugin. The displayed editor and Outline View
 are context, not additional Favorites features.
 

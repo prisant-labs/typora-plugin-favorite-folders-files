@@ -277,7 +277,7 @@ export function createFavoritesState(): FavoritesState {
       layout: 'tabs',
       groupView: 'outline',
       activeTab: 'favorites',
-      recentFilter: 'all',
+      recentFilter: 'file',
       groupSort: 'custom',
       itemSort: 'az',
       collapsedGroups: [],

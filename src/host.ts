@@ -1,10 +1,12 @@
-import { normalizePath, type LocationKind, type Platform } from './model'
+import { locationId, normalizePath, type LocationKind, type Platform } from './model'
 
+/** `newWindow` mirrors Ctrl+click in Typora's own folder switcher (Windows only). */
+export interface OpenOptions { newWindow?: boolean }
 export interface Host {
   platform: Platform
   current(): { file?: string; folder?: string }
   subscribe(listener: () => void): () => void
-  open(kind: LocationKind, path: string): Promise<void>
+  open(kind: LocationKind, path: string, options?: OpenOptions): Promise<void>
   reveal(kind: LocationKind, path: string): Promise<void>
   dispose?(): void
 }
@@ -20,7 +22,7 @@ interface NativeApp {
 }
 export interface NativeServices {
   stat(path: string): Promise<{ isDirectory(): boolean; isFile(): boolean }>
-  invoke(command: string, path?: string): unknown
+  invoke(command: string, ...args: unknown[]): unknown
   showInFinder(path: string): unknown
   isDirectory?(path: string): Promise<boolean>
 }
@@ -59,12 +61,20 @@ export class NativeHost implements Host {
       if (kind === 'file' ? !info.isFile() : !info.isDirectory()) throw new Error('Wrong location kind')
     } catch { throw new Error(`Unavailable ${kind}. It may have moved or access may be denied. Your Favorite is preserved.`) }
   }
-  async open(kind: LocationKind, path: string) {
+  private isOpenFolder(path: string) {
+    try { return Boolean(this.app.vault.path) && locationId('folder', this.app.vault.path, this.platform) === locationId('folder', path, this.platform) } catch { return false }
+  }
+  async open(kind: LocationKind, path: string, options: OpenOptions = {}) {
     const nativePath = this.nativePath(path)
     if (kind === 'file' && !isMarkdown(nativePath)) throw new Error('Favorites opens Markdown files only.')
     await this.check(kind, nativePath)
     if (this.disposed) return
-    if (kind === 'folder') await this.services.invoke('controller.switchFolder', nativePath)
+    // Same call as Ctrl+click in Typora's own folder switcher on Windows.
+    if (options.newWindow && this.platform === 'win32') await this.services.invoke('app.openFileOrFolder', nativePath, { forceCreateWindow: true })
+    else if (kind === 'folder') {
+      // Typora's switcher skips the folder already open; re-switching it can spawn a window.
+      if (!this.isOpenFolder(nativePath)) await this.services.invoke('controller.switchFolder', nativePath)
+    }
     else if (this.platform === 'darwin') {
       // app.openFile parses the path as a URL: #/? anywhere can truncate it,
       // misclassify it, and route into shell-based macOS fs.access. The public

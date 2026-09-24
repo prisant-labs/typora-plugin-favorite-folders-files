@@ -13,7 +13,8 @@ export interface FavoritesPanelSnapshot {
   platform: Platform
   current: { file?: string; folder?: string }
   history: NativeHistorySnapshot
-  historyImport?: { available: boolean; loading: boolean; importedAt?: number; error?: string }
+  /** Live source of Typora's Recent list. Absent in synthetic previews. */
+  historySource?: { available: boolean; loading: boolean; error?: string }
   writable: boolean
   error?: string
   unavailable?: ReadonlySet<string>
@@ -21,12 +22,11 @@ export interface FavoritesPanelSnapshot {
 export interface FavoritesPanelActions {
   change(operation: FavoritesOperation): void | Promise<unknown>
   commit(draft: FavoritesDraft): Promise<FavoritesState>
-  open(kind: LocationKind, path: string): void | Promise<void>
+  open(kind: LocationKind, path: string, options?: { newWindow?: boolean }): void | Promise<void>
   reveal(kind: LocationKind, path: string): void | Promise<void>
   settings(): void | Promise<unknown>
-  importHistory?(): void | Promise<unknown>
-  clearHistory?(): void
 }
+const RECENT_SOURCE = 'Typora\'s own Recent list (File → Open Recent). Favorites reads it while this panel is open and never saves or changes it.'
 type EditorKind = 'add' | 'move' | 'groups' | 'arrange'
 type Choice = { id: string; kind: LocationKind; path: string }
 interface Editor {
@@ -53,7 +53,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text?
   if (text !== undefined) node.textContent = text
   return node
 }
-function btn(label: string, key: string, action: () => void, glyph?: string) {
+function btn(label: string, key: string, action: (event: MouseEvent) => void, glyph?: string) {
   const node = el('button', glyph ? 'qa-icon-button' : '')
   node.type = 'button'; node.dataset.key = key; node.title = label; node.setAttribute('aria-label', label)
   if (glyph) node.append(icon(glyph)); else node.textContent = label
@@ -178,10 +178,11 @@ export class FavoritesPanelRenderer {
     search.addEventListener('compositionend', () => { this.composing = false; this.query = search.value; this.render() })
     searchWrap.append(icon('search'), search)
     const controls = el('div', 'qa-controls'); const toolbar = el('div', 'qa-toolbar')
-    toolbar.append(this.popupButton('View', 'view', 'view'))
+    const views = this.popupButton('Views', 'view', 'view'); views.prepend(icon('views')); toolbar.append(views)
     const showSort = p.layout === 'stacked' || p.activeTab === 'favorites' || Boolean(this.query)
     if (showSort) {
-      toolbar.append(this.popupButton(`Groups: ${this.sortName(p.groupSort)}`, 'sort-groups', 'groups'), this.popupButton(`Items: ${this.sortName(p.itemSort)}`, 'sort-items', 'items'))
+      const divider = el('span', 'qa-toolbar-divider'); divider.setAttribute('aria-hidden', 'true')
+      toolbar.append(this.popupButton(`Groups: ${this.sortName(p.groupSort)}`, 'sort-groups', 'groups'), divider, this.popupButton(`Items: ${this.sortName(p.itemSort)}`, 'sort-items', 'items'))
     } else toolbar.append(this.recentOrder())
     controls.append(toolbar)
     if (this.popup && ['view', 'groups', 'items'].includes(this.popup.kind)) controls.append(this.options())
@@ -204,13 +205,12 @@ export class FavoritesPanelRenderer {
     const footer = el('div', 'qa-footer', `${state.favorites.length} Favorites · ${state.groups.length + 1} groups`)
     return [searchWrap, controls, navigation, lists, footer]
   }
-  /** Snapshot disclosure lives in the tooltip; Refresh and Clear live in Settings. */
+  /** Honest order label: "Most recent first" only when every entry has a date. */
   private recentOrder() {
-    const { history, historyImport } = this.snapshot!, ready = history.status === 'ready'
-    const label = el('span', 'qa-quiet', !ready ? 'Not imported' : history.order === 'per-kind' ? 'Typora\'s order' : 'Most recent first')
+    const { history, historySource } = this.snapshot!, ready = history.status === 'ready'
+    const label = el('span', 'qa-quiet', ready ? history.order === 'per-kind' ? 'Typora\'s order' : 'Most recent first' : historySource?.loading ? 'Loading…' : 'Unavailable')
     label.dataset.recentOrder = ''
-    const loaded = historyImport?.importedAt !== undefined ? `Loaded ${new Date(historyImport.importedAt).toLocaleTimeString()}. ` : ''
-    label.title = ready ? `${loaded}Session snapshot, not live. Refresh or clear it in Settings → Recent.` : 'Import Typora Recent in this tab or in Settings → Recent.'
+    label.title = ready && history.order === 'per-kind' ? `${RECENT_SOURCE} Some entries have no date, so each list keeps Typora's order.` : RECENT_SOURCE
     return label
   }
   private sortName(sort: string) { return sort === 'az' ? 'A-Z' : sort === 'recent' ? 'Recently opened' : 'Custom' }
@@ -244,7 +244,7 @@ export class FavoritesPanelRenderer {
     } else {
       const capable = this.snapshot!.history.status === 'ready' && this.snapshot!.history.order !== 'per-kind'
       choices(kind === 'groups' ? 'Sort groups' : 'Sort items', kind === 'groups' ? 'groupSort' : 'itemSort', [['custom', 'Custom'], ['az', 'A-Z'], ['recent', 'Recently opened', !capable]])
-      if (!capable) popup.append(el('p', 'qa-quiet', this.snapshot!.history.status === 'ready' ? 'This Recent snapshot has no shared file and folder dates, so Recently opened is unavailable.' : 'Import Typora Recent to sort by recently opened.'))
+      if (!capable) popup.append(el('p', 'qa-quiet', this.snapshot!.history.status === 'ready' ? 'Some entries in Typora\'s Recent list have no date, so Recently opened is unavailable.' : 'Recently opened uses Typora\'s Recent list, which isn\'t available here.'))
     }
     return popup
   }
@@ -292,28 +292,22 @@ export class FavoritesPanelRenderer {
   private renderRecent(lists: HTMLElement) {
     const { history } = this.snapshot!, p = this.state().preferences
     if (p.layout === 'stacked') { lists.append(this.sectionHeader('Recent', 'recent', p.recentCollapsed)); if (p.recentCollapsed) return }
-    const imported = this.snapshot!.historyImport
-    // First import only: once a snapshot exists, Refresh and Clear live in Settings.
-    if (imported && imported.importedAt === undefined) {
-      const controls = el('div', 'qa-history-import')
-      const load = btn(imported.loading ? 'Importing…' : 'Import from Typora', 'history-import', () => { void this.run(() => this.actions.importHistory?.()) })
-      load.disabled = !imported.available || imported.loading
-      controls.append(load)
-      const message = imported.available ? 'Import a session-only snapshot. Nothing is saved to disk; Typora history is unchanged. Refresh or clear it later in Settings.' : 'Manual import is available only in supported Windows Typora windows.'
-      controls.append(el('p', 'qa-history-note', message))
-      if (imported.error) { const error = el('p', 'qa-history-note', imported.error); error.setAttribute('role', 'alert'); controls.append(error) }
-      lists.append(controls)
-    }
+    // A stored 'all' from earlier builds shows Files, the first filter.
+    const kind: LocationKind = p.recentFilter === 'folder' ? 'folder' : 'file'
     const filters = el('div', 'qa-recent-filters'); filters.setAttribute('role', 'group'); filters.setAttribute('aria-label', 'Recent kind')
-    for (const [kind, label] of [['all', 'All'], ['folder', 'Folders'], ['file', 'Files']] as const) {
-      const node = btn(label, `recent-${kind}`, () => this.change({ recentFilter: kind })); node.setAttribute('aria-pressed', String(p.recentFilter === kind)); node.disabled = kind === 'all' && history.status === 'ready' && history.order === 'per-kind'; filters.append(node)
+    for (const [value, label] of [['file', 'Files'], ['folder', 'Folders']] as const) {
+      const node = btn(label, `recent-${value}`, () => this.change({ recentFilter: value })); node.setAttribute('aria-pressed', String(kind === value)); filters.append(node)
     }
     lists.append(filters)
-    if (history.status !== 'ready') { lists.append(el('p', 'qa-empty', history.message || 'Native Recent history is unavailable.')); return }
-    if (p.recentFilter === 'all' && history.order === 'per-kind') { lists.append(el('p', 'qa-empty', 'A combined native order is unavailable.')); return }
-    const rows = selectRecent(history, p.recentFilter)
+    if (history.status !== 'ready') {
+      const source = this.snapshot!.historySource
+      const message = source && !source.available ? 'Recent shows Typora\'s own Recent list, currently available in Typora for Windows only.'
+        : source?.error || (source?.loading ? 'Reading Typora\'s Recent list…' : history.message || 'Typora\'s Recent list is unavailable.')
+      const note = el('p', 'qa-empty', message); if (source?.error) note.setAttribute('role', 'alert'); lists.append(note); return
+    }
+    const rows = selectRecent(history, kind)
     for (const row of rows) lists.append(this.row(row, 'recent'))
-    if (!rows.length) lists.append(el('p', 'qa-empty', 'No recent locations.'))
+    if (!rows.length) lists.append(el('p', 'qa-empty', kind === 'file' ? 'No recent Markdown files in Typora\'s Recent list.' : 'No recent folders in Typora\'s Recent list.'))
   }
   private renderSearch(lists: HTMLElement) {
     const state = this.state(), query = this.query.trim().toLocaleLowerCase(); const seen = new Set<string>()
@@ -336,8 +330,11 @@ export class FavoritesPanelRenderer {
     let isCurrent = false
     try { isCurrent = Boolean(current && locationId(location.kind, current, this.snapshot!.platform) === location.id) } catch { /* Unsaved location. */ }
     row.classList.toggle('qa-current', isCurrent)
-    const open = btn(`Open ${name}`, `open:${rowKey}`, () => { void this.run(() => this.actions.open(location.kind, location.path)) })
-    open.className = 'qa-open'; open.title = location.path; if (isCurrent) open.setAttribute('aria-current', 'location')
+    const newWindow = this.snapshot!.platform === 'win32'
+    const open = btn(`Open ${name}`, `open:${rowKey}`, event => { void this.run(() => this.actions.open(location.kind, location.path, { newWindow: newWindow && (event.ctrlKey || event.metaKey) })) })
+    open.className = 'qa-open'; if (isCurrent) open.setAttribute('aria-current', 'location')
+    const here = isCurrent && location.kind === 'folder' ? 'Already open in this window' : 'Click to open in this window'
+    open.title = newWindow ? `${location.path}\n${here} · Ctrl+click for a new window` : location.path
     const labels = el('span', 'qa-row-label'), title = el('span', 'qa-name', name)
     if (isCurrent) title.append(el('span', 'qa-current-label', ' Current'))
     if (this.snapshot!.unavailable?.has(location.id)) title.append(el('span', 'qa-missing', ' · Unavailable'))
@@ -483,6 +480,7 @@ export class FavoritesPanelRenderer {
     if (mode !== 'custom') body.append(btn('Arrange manually', 'arrange-manually', () => this.stage({ type: 'favorites:preferences', patch: { [field]: 'custom' } })))
   }
   private groupsPage(body: HTMLElement, e: Editor, state: FavoritesState) {
+    body.append(el('h4', 'qa-page-section', 'Organize groups'))
     this.manualNotice(body, state.preferences.groupSort, 'groupSort')
     const custom = state.preferences.groupSort === 'custom'
     for (const group of selectFavoriteGroups(state, historyActivity(this.snapshot!.history)).groups) {
@@ -511,7 +509,8 @@ export class FavoritesPanelRenderer {
         const confirm = el('div', 'qa-delete-confirm'); confirm.append(el('p', '', `Delete ${group.name}? Its Favorites will move to Ungrouped when you Save.`), btn('Delete group', 'confirm-delete', () => { e.deleting = undefined; this.stage({ type: 'group:delete', groupId: group.id }) }), btn('Keep group', 'keep-group', () => { e.deleting = undefined; this.render() })); body.append(confirm)
       }
     }
-    const form = el('div', 'qa-new-group'), label = el('label', '', 'New group'), input = el('input'); input.placeholder = 'Group name'; input.value = e.newName; input.maxLength = 60; input.dataset.key = 'new-group-name'; input.setAttribute('aria-label', 'New group name')
+    body.append(el('h4', 'qa-page-section', 'New group'))
+    const form = el('div', 'qa-new-group'), label = el('label'), input = el('input'); input.placeholder = 'Group name'; input.value = e.newName; input.maxLength = 60; input.dataset.key = 'new-group-name'; input.setAttribute('aria-label', 'New group name')
     input.addEventListener('input', () => { e.newName = input.value; const save = this.container.querySelector<HTMLButtonElement>('[data-key="editor-save"]'); if (save) save.disabled = !this.dirty() || !this.snapshot!.writable; const status = this.container.querySelector('.qa-draft-state'); if (status) status.textContent = this.dirty() ? 'Unsaved changes' : 'No changes yet' })
     this.preserveComposition(input)
     label.append(input); form.append(label, btn('Add group', 'add-group', () => {

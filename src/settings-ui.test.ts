@@ -10,13 +10,13 @@ describe('shared Favorites settings editor', () => {
     const container = document.createElement('div')
     const dispose = renderSettings(container, createFavoritesState(), vi.fn(), { version: '0.1.0', author: 'Example Author', authorUrl: 'https://example.com', repo: 'example/favorites' })
     expect(container.querySelector('.qa-settings__masthead h2')?.textContent).toBe('Favorites')
-    expect(container.querySelector('[data-release-status]')?.textContent).toBe('Development build')
+    expect(container.querySelector('[data-release-status]')?.textContent).toBe('Early release')
     expect(container.textContent).toContain('Installed 0.1.0')
     expect(container.querySelector<HTMLAnchorElement>('[data-link="author"]')?.href).toBe('https://example.com/')
     expect(container.querySelector<HTMLAnchorElement>('[data-link="github"]')?.href).toBe('https://github.com/example/favorites')
     expect([...container.querySelectorAll('.qa-settings__section > h3')].map(node => node.textContent)).toEqual(['Display', 'Ordering', 'Recent'])
-    expect(container.textContent).toContain('Refresh after')
-    expect(container.textContent).toContain('session only')
+    expect(container.textContent).toContain('File → Open Recent')
+    expect(container.textContent).toContain('never saves')
     expect(container.querySelector('header, footer')).toBeNull()
     dispose()
   })
@@ -30,26 +30,6 @@ describe('shared Favorites settings editor', () => {
     const css = readFileSync(join(process.cwd(), 'src', 'settings.scss'), 'utf8')
     expect(css).toMatch(/\.qa-settings__fact \+ \.qa-settings__fact::before \{[^}]*content: '·'/)
     expect(css).not.toContain(':not(button)')
-    dispose()
-  })
-
-  it('imports, refreshes and clears the session Recent snapshot from Settings using counts only', async () => {
-    const container = document.createElement('div'); document.body.append(container)
-    const importHistory = vi.fn(), clearHistory = vi.fn()
-    const base = { available: true, loading: false, files: 0, folders: 0, ordered: false }
-    let dispose = renderSettings(container, createFavoritesState(), vi.fn(), { recent: base, importHistory, clearHistory })
-    const action = (name: string) => container.querySelector<HTMLButtonElement>(`[data-action="${name}"]`)!
-    expect(container.querySelector('[data-recent-status]')?.textContent).toContain('No snapshot imported')
-    expect(action('history-import').textContent).toBe('Import from Typora'); expect(action('history-clear').disabled).toBe(true)
-    action('history-import').click(); await vi.waitFor(() => expect(importHistory).toHaveBeenCalledOnce())
-    dispose(); dispose = renderSettings(container, createFavoritesState(), vi.fn(), { recent: { ...base, importedAt: 1000, files: 2, folders: 1, ordered: true }, recentAvailable: true, importHistory, clearHistory })
-    const status = container.querySelector('[data-recent-status]')!
-    expect(status.textContent).toContain('2 files, 1 folder'); expect(status.textContent).toContain('Not live')
-    expect(status.querySelector('time')?.dateTime).toBe('1970-01-01T00:00:01.000Z')
-    expect(action('history-import').textContent).toBe('Refresh snapshot')
-    action('history-clear').click(); expect(clearHistory).toHaveBeenCalledOnce()
-    dispose(); dispose = renderSettings(container, createFavoritesState(), vi.fn(), { recent: { ...base, available: false }, importHistory, clearHistory })
-    expect(action('history-import').disabled).toBe(true); expect(container.textContent).toContain('Windows')
     dispose()
   })
 

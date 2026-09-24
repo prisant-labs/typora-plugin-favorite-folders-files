@@ -23,6 +23,22 @@ describe('native path adapter', () => {
     await f.host.reveal('folder', 'C:/Synthetic/Notes')
     expect(f.services.invoke).toHaveBeenCalledWith('shell.openItem', 'C:\\Synthetic\\Notes')
   })
+  it('does not re-switch to the folder already open, as Typora\'s own switcher does', async () => {
+    const f = fixture(); f.services.stat.mockResolvedValue({ isDirectory: () => true, isFile: () => false })
+    f.app.vault.path = 'c:\\synthetic\\notes'
+    await f.host.open('folder', 'C:/Synthetic/Notes')
+    expect(f.services.invoke).not.toHaveBeenCalled()
+    await f.host.open('folder', 'C:/Synthetic/Other')
+    expect(f.services.invoke).toHaveBeenCalledWith('controller.switchFolder', 'C:\\Synthetic\\Other')
+  })
+  it('opens a new window on request with Typora\'s own Ctrl+click command on Windows only', async () => {
+    const f = fixture(); f.services.stat.mockResolvedValue({ isDirectory: () => true, isFile: () => false })
+    f.app.vault.path = 'C:\\Synthetic\\Notes'
+    await f.host.open('folder', 'C:/Synthetic/Notes', { newWindow: true })
+    expect(f.services.invoke).toHaveBeenCalledExactlyOnceWith('app.openFileOrFolder', 'C:\\Synthetic\\Notes', { forceCreateWindow: true })
+    const mac = fixture('darwin'); await mac.host.open('file', '/Synthetic/note.md', { newWindow: true })
+    expect(mac.services.invoke).not.toHaveBeenCalled(); expect(mac.app.workspace.activeEditor.openFile).toHaveBeenCalledOnce()
+  })
   it('never uses mac shell-based fs checks, including apostrophe and hash names', async () => {
     const f = fixture('darwin'); await f.host.open('file', "/Synthetic/Editor's #note.md")
     expect(f.services.stat).not.toHaveBeenCalled()

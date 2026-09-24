@@ -54,13 +54,12 @@ describe('CI visual anchor', () => {
       expect(doc.querySelectorAll('.qa-row')).toHaveLength(5)
       doc.querySelector<HTMLButtonElement>('[data-key=tab-recent]')!.click()
       await Promise.resolve()
-      expect(doc.querySelectorAll('.qa-row')).toHaveLength(0)
+      // Recent is a live view: Files first, no import step.
+      expect(doc.querySelectorAll('.qa-row')).toHaveLength(2)
+      expect(doc.querySelector('[data-key=history-import]')).toBeNull()
       expect(doc.querySelector('#ribbon-quick-access svg')?.getAttribute('width')).toBe('24')
       // Host shell mirrors Core's settings wrappers so the preview's pane-height stretch is reviewable.
       expect(doc.querySelector('.typ-modal__body > .typ-main > .typ-setting-tab > #settings-mount.qa-settings-host')).not.toBeNull()
-      doc.querySelector<HTMLButtonElement>('[data-key=history-import]')!.click()
-      await Promise.resolve()
-      expect(doc.querySelectorAll('.qa-row').length).toBeGreaterThan(0)
       const search = doc.querySelector<HTMLInputElement>('[data-key=search]')!
       search.value = 'Projects'; search.dispatchEvent(new dom.window.Event('input'))
       expect(doc.querySelectorAll('.qa-row')).toHaveLength(2)

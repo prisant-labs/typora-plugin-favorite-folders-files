@@ -69,26 +69,6 @@ describe('native shared settings', () => {
     tab.dispose(); controller.dispose()
   })
 
-  it('follows the Recent snapshot and returns keyboard focus to its action after the rebuild', async () => {
-    const state = createFavoritesState()
-    const controller = new FavoritesController({ read: async () => state, update: async () => state, commitDraft: async () => state, close: async () => {} }, 'win32')
-    await controller.start()
-    let recent = { available: true, loading: false, files: 0, folders: 0, ordered: false } as { available: boolean; loading: boolean; importedAt?: number; files: number; folders: number; ordered: boolean }
-    let notify = () => {}
-    const importHistory = vi.fn(() => { recent = { ...recent, loading: true }; notify() })
-    const tab = new QuickAccessSettingTab(controller, { recentStatus: () => recent, importHistory, subscribeRecent: listener => { notify = listener; return () => {} } })
-    document.body.append(tab.containerEl); tab.onshow()
-    expect(tab.containerEl.querySelector('.qa-settings-host > .qa-settings')).not.toBeNull()
-    const action = () => tab.containerEl.querySelector<HTMLButtonElement>('[data-action="history-import"]')!
-    action().focus(); action().click()
-    await vi.waitFor(() => expect(importHistory).toHaveBeenCalledOnce())
-    expect(action().textContent).toBe('Importing…'); expect(action().disabled).toBe(true)
-    recent = { ...recent, loading: false, importedAt: 1000, files: 1, folders: 1, ordered: true }; notify()
-    expect(action().textContent).toBe('Refresh snapshot')
-    expect(document.activeElement).toBe(action())
-    tab.dispose(); controller.dispose()
-  })
-
   it('refreshes Recent capability without a preference write and releases the subscription on hide', async () => {
     const state = createFavoritesState()
     const controller = new FavoritesController({ read: async () => state, update: async () => state, commitDraft: async () => state, close: async () => {} }, 'win32')
@@ -106,7 +86,7 @@ describe('native shared settings', () => {
     expect(option().disabled).toBe(true)
     available = true; notify()
     expect(option().disabled).toBe(false)
-    expect(tab.containerEl.textContent).toContain('Imported snapshot ordering is available')
+    expect(tab.containerEl.textContent).toContain('Recently opened ordering is available')
     expect(controller.state.revision).toBe(0)
     tab.onhide()
     expect(unsubscribe).toHaveBeenCalledTimes(1)

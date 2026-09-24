@@ -1,8 +1,8 @@
-# Favorites candidate installation and native checks
+# Favorites installation and native checks
 
-This unpublished development candidate is ready for controlled testing with
-disposable Markdown documents. Windows and macOS acceptance are separate.
-The HTML preview and automated DOM/storage tests do not establish native behavior.
+Use this checklist to test a build with disposable Markdown documents.
+Windows and macOS acceptance are separate. The HTML preview and automated
+DOM/storage tests do not establish native behavior.
 
 ## Build and install
 
@@ -76,12 +76,13 @@ Keep real paths, screenshots and native history in local-only receipts.
 
 ## Native Recent capability gate
 
-On Windows, the explicit Import from Typora action calls the native read-only
-Recent getter. It is offered in the sidebar Recent tab until a snapshot exists,
-and always in Settings → Recent, where Refresh and Clear live. Settings shows
-only counts and load time, never paths. The snapshot exists only in memory.
-No polling, navigation event, settings preview or startup loads history. On
-macOS the import is unsupported.
+On Windows, Recent is a live view of Typora's native read-only Recent getter.
+It is read only while the Favorites panel is visible: on show, on window focus
+and after navigation events, throttled and coalesced. The storage poll never
+reads it. An unchanged list is not republished. The list exists only in memory; nothing is
+saved, and the settings page and its preview never show it. On macOS Recent is
+unsupported. Clicking the folder already open does nothing; Ctrl+click opens a
+new window through `app.openFileOrFolder` with `forceCreateWindow`.
 
 Dates are accepted in the forms Typora's own Recent menu sorts (numbers, numeric
 strings and Date objects). To inspect the payload shape without printing paths,
@@ -93,18 +94,21 @@ Promise.resolve(JSBridge.invoke('setting.getRecentFiles')).then(r => console.tab
 
 Using disposable native history, check:
 
-- Import files and folders, empty history and Unicode paths. Verify Markdown
-  filtering, deduplication and newest-first order against Typora's own menu.
-- Navigate outside Favorites; confirm the snapshot stays unchanged until Refresh.
-- Clear native history in Typora, then Refresh: the snapshot must become empty.
-  Before Refresh the old snapshot can remain; its not-live notice is intentional.
-- Clear snapshot while loading, disable/re-enable, and restart. No late result
-  may restore a cleared snapshot. No saved Favorite may be removed or auto-added.
+- Show Recent with files, folders, empty history and Unicode paths. Verify
+  Markdown filtering, deduplication and order against Typora's own menu.
+- Open a location outside Favorites; Recent should update within a few seconds
+  while the panel is visible. Hide the panel: no reads should occur.
+- Clear Typora's list (File → Open Recent → Clear Items); Recent must empty on
+  the next read. Open a second window: it shows the same list.
+- Disable/re-enable and restart. No late read may publish after unload. No saved
+  Favorite may be removed or auto-added.
+- Click the folder marked Current: nothing should happen. Click another folder:
+  it should switch this window. Ctrl+click: a new window should open.
 - Test recording-off behavior explicitly. The bridge's privacy semantics are
   not yet runtime-verified; no automatic recording-off detection is claimed.
-- If native date fields are missing, All and mixed Recently opened ordering
-  stay unavailable; inspect Files/Folders separately. Dates have no assumed epoch
-  and are not shown as ages. Unsupported payloads show a safe error.
+- If native date fields are missing, the label reads "Typora's order" and
+  Recently opened sorting stays unavailable. Dates have no assumed epoch and are
+  not shown as ages. Unsupported payloads show a safe error.
 - Check the header remains in normal flow, the star ribbon is 24px, and all
   visible plugin labels read Favorites. In settings, inspect compact controls
   and preview at narrow/wide widths and light/dark themes; close/reopen repeatedly.

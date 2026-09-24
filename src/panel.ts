@@ -27,6 +27,7 @@ const paths: Record<string, string> = {
   name: 'M3 10 6 3 9 10 M4 7h4 M3 14h6l-6 7h6 M17 4v16 M13 16l4 4 4-4',
   reveal: 'M3 8V5h6l2 3h2 M3 8v12h14l4-8H7l-4 8 M16 3h5v5 M21 3l-7 7',
   plus: 'M12 5v14 M5 12h14', settings: 'M4 6h16 M4 12h16 M4 18h16 M8 3v6 M16 9v6 M10 15v6',
+  views: 'M4 5h16v14H4Z M4 10h16 M10 10v9',
 }
 export function icon(name: string): SVGSVGElement {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
