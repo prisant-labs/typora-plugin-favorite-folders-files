@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "typora-plugin-favorite-folders-files",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "packageManager": "pnpm@10.33.4",
   "description": "Keep favorite folders and Markdown files within reach in Typora.",
   "type": "module",

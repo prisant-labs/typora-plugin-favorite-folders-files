@@ -3,6 +3,16 @@
 All notable changes to Favorites for Typora are recorded here. Versions follow
 [semantic versioning](https://semver.org/).
 
+## 0.1.1 (2026-09-24)
+
+### Fixed
+
+- **Recent** on Windows now orders files and folders together. Typora stores
+  folder dates as ISO 8601 text but file dates as numbers, and folder dates were
+  being read as missing. That also re-enables **Recently opened** sorting and
+  the **Most recent first** label. Only full ISO 8601 timestamps are accepted;
+  looser date text still counts as missing, so no order is guessed.
+
 ## 0.1.0 (2026-09-24)
 
 First public release.

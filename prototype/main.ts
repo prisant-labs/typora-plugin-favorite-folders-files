@@ -77,7 +77,7 @@ function syncSettings() {
   const history = normalizeHistory(nativeFixture, 'darwin'), ordered = history.status === 'ready' && history.order !== 'per-kind'
   disposeSettings = renderSettings(document.querySelector<HTMLElement>('#settings-mount')!, state, patch => {
     state = applyFavoritesOperation(state, { type: 'favorites:preferences', patch }, 'darwin'); render()
-  }, { writable: true, version: '0.1.0', author: 'Prisant Labs', repo: 'prisant-labs/typora-plugin-favorite-folders-files', recentAvailable: ordered })
+  }, { writable: true, version: '0.1.1', author: 'Prisant Labs', repo: 'prisant-labs/typora-plugin-favorite-folders-files', recentAvailable: ordered })
 }
 document.querySelector('#theme')!.addEventListener('change', event => { document.documentElement.dataset.theme = (event.target as HTMLSelectElement).value })
 document.querySelector('#panel-width')!.addEventListener('change', event => { document.documentElement.style.setProperty('--panel-width', (event.target as HTMLSelectElement).value + 'px') })
