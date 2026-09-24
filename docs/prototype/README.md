@@ -23,7 +23,9 @@ are context, not additional Favorites features.
 2. Run `pnpm prototype:build`.
 3. Open the generated HTML and exercise the affected states.
 4. Run `pnpm prototype:check`, tests, typecheck and packaging checks.
-5. Commit source and HTML together.
+5. If the change is visible, run `pnpm docs:screenshots` and review the
+   regenerated README images in `docs/images/`.
+6. Commit source, HTML and images together.
 
 The generator fingerprints all production sources, preview sources, package
 and lockfile, license and generator. `prototype:check` generates in memory,

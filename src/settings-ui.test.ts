@@ -30,6 +30,8 @@ describe('shared Favorites settings editor', () => {
     const css = readFileSync(join(process.cwd(), 'src', 'settings.scss'), 'utf8')
     expect(css).toMatch(/\.qa-settings__fact \+ \.qa-settings__fact::before \{[^}]*content: '·'/)
     expect(css).not.toContain(':not(button)')
+    // Flex layout trims the space in "Installed 0.1.0" and "By <link>"; facts must stay inline text.
+    expect(css).not.toMatch(/\.qa-settings__fact \{[^}]*display: (inline-)?flex/)
     dispose()
   })
 

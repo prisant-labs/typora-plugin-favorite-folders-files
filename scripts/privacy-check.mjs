@@ -116,12 +116,39 @@ function stagedBlob(repo, path) {
   return runGit(repo, ['show', `:${path}`], { encoding: null })
 }
 
+const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+// Pixels cannot be machine-inspected, so only human-reviewed documentation
+// images are accepted, and only chunks that cannot carry text: no comments,
+// profile names, EXIF or timestamps, and nothing appended after IEND.
+const pngDataChunks = new Set(['IHDR', 'PLTE', 'IDAT', 'IEND', 'tRNS', 'sRGB', 'gAMA', 'cHRM', 'pHYs'])
+
+function inspectDocumentationPng(contents) {
+  if (!contents.subarray(0, pngSignature.length).equals(pngSignature)) {
+    return ['documentation image is not a PNG']
+  }
+  const findings = []
+  let offset = pngSignature.length
+  let ended = false
+  while (!ended && offset + 8 <= contents.length) {
+    const type = contents.toString('latin1', offset + 4, offset + 8)
+    if (!pngDataChunks.has(type)) findings.push(`PNG chunk ${JSON.stringify(type)} can carry metadata`)
+    offset += 12 + contents.readUInt32BE(offset)
+    ended = type === 'IEND'
+  }
+  if (!ended || offset !== contents.length) findings.push('PNG is truncated or has data after IEND')
+  return findings
+}
+
 function inspectPath(path, contents) {
   const findings = []
 
   if (/(?:^|\/)_local(?:\/|$)/i.test(path)) {
     findings.push('private _local path')
     return findings
+  }
+
+  if (/^docs\/images\/[^/]+\.png$/.test(path)) {
+    return inspectDocumentationPng(contents)
   }
 
   if (contents.includes(0)) {

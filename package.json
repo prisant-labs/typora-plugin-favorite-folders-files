@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "prototype:build": "node scripts/prototype.mjs",
     "prototype:check": "node scripts/prototype.mjs --check",
+    "docs:screenshots": "node scripts/screenshots.mjs",
     "privacy:check": "node scripts/privacy-check.mjs --staged --repo .",
     "release:check": "node scripts/release.mjs --check"
   },

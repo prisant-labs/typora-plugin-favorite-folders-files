@@ -55,8 +55,9 @@ describe('CI visual anchor', () => {
       doc.querySelector<HTMLButtonElement>('[data-key=tab-recent]')!.click()
       await Promise.resolve()
       // Recent is a live view: Files first, no import step.
-      expect(doc.querySelectorAll('.qa-row')).toHaveLength(2)
+      expect(doc.querySelectorAll('.qa-row')).toHaveLength(4)
       expect(doc.querySelector('[data-key=history-import]')).toBeNull()
+      expect(doc.querySelector('.qa-age')).toBeNull()
       expect(doc.querySelector('#ribbon-quick-access svg')?.getAttribute('width')).toBe('24')
       // Host shell mirrors Core's settings wrappers so the preview's pane-height stretch is reviewable.
       expect(doc.querySelector('.typ-modal__body > .typ-main > .typ-setting-tab > #settings-mount.qa-settings-host')).not.toBeNull()

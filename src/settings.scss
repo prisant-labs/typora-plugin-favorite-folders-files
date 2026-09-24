@@ -22,7 +22,7 @@
 .qa-settings__masthead h2 { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.2; }
 .qa-settings__release-status { display: inline-block; padding: 2px 8px; border: 1px solid var(--settings-border); border-radius: 999px; color: var(--settings-muted); background: color-mix(in srgb, var(--settings-text) 4%, var(--settings-bg)); font-size: 11px; font-weight: 600; white-space: nowrap; }
 .qa-settings__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 9px; margin-top: 7px; color: var(--settings-muted); font-size: 11px; }
-.qa-settings__fact { display: inline-flex; align-items: center; }
+.qa-settings__fact { white-space: nowrap; }
 .qa-settings__fact + .qa-settings__fact::before { content: '·'; margin-right: 9px; }
 .qa-settings__meta strong { color: var(--settings-text); font-weight: 600; }
 .qa-settings__meta a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }

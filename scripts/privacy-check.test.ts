@@ -92,6 +92,49 @@ describe('staged privacy gate', () => {
     expect(result.stderr).toContain('unsafe.txt')
   })
 
+  function png(...chunks: Array<[string, Uint8Array?]>) {
+    const parts: Uint8Array[] = [Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])]
+    for (const [type, data = Buffer.alloc(0)] of chunks) {
+      const length = Buffer.alloc(4); length.writeUInt32BE(data.length)
+      parts.push(length, Buffer.from(type, 'latin1'), data, Buffer.alloc(4))
+    }
+    return Buffer.concat(parts)
+  }
+  function stageImage(directory: string, path: string, contents: Uint8Array) {
+    mkdirSync(join(directory, ...path.split('/').slice(0, -1)), { recursive: true })
+    writeFileSync(join(directory, ...path.split('/')), contents)
+    git(directory, 'add', '.gitignore', path)
+  }
+
+  it('accepts a reviewed documentation PNG that carries no metadata', () => {
+    const directory = repository()
+    stageImage(directory, 'docs/images/panel.png', png(['IHDR', Buffer.alloc(13)], ['IDAT', Buffer.from([0, 1, 2])], ['IEND']))
+    const result = run(directory, '--staged')
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stdout).toContain('Result: pass')
+  })
+
+  it.each([
+    ['a text metadata chunk', png(['IHDR', Buffer.alloc(13)], ['tEXt', Buffer.from('Comment\0synthetic')], ['IDAT'], ['IEND'])],
+    ['an ICC profile name', png(['IHDR', Buffer.alloc(13)], ['iCCP', Buffer.from('synthetic\0\0')], ['IDAT'], ['IEND'])],
+    ['data after IEND', Buffer.concat([png(['IHDR', Buffer.alloc(13)], ['IDAT'], ['IEND']), Buffer.from('appended')])],
+    ['a non-PNG file with a .png name', Buffer.from([0, 1, 2, 3])],
+  ])('rejects a documentation image with %s', (_label, contents) => {
+    const directory = repository()
+    stageImage(directory, 'docs/images/panel.png', contents)
+    const result = run(directory, '--staged')
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('docs/images/panel.png')
+  })
+
+  it('still rejects a PNG outside docs/images', () => {
+    const directory = repository()
+    stageImage(directory, 'assets/panel.png', png(['IHDR', Buffer.alloc(13)], ['IDAT'], ['IEND']))
+    const result = run(directory, '--staged')
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('assets/panel.png')
+  })
+
   it('rejects staged binary content it cannot inspect', () => {
     const directory = repository()
     writeFileSync(join(directory, 'opaque.bin'), Buffer.from([0, 1, 2, 3]))

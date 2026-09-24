@@ -27,7 +27,7 @@ function createRenderer() { return new FavoritesPanelRenderer(mount, {
     }
     current[kind] = path
     // Fixture-only host response. Production never maintains a history collector.
-    if (nativeFixture.status === 'ready') nativeFixture.entries = [{ kind, path, openedAt: Date.now() }, ...nativeFixture.entries!.filter(row => row.kind !== kind || row.path !== path)]
+    if (nativeFixture.status === 'ready') nativeFixture.entries = [{ kind, path }, ...nativeFixture.entries!.filter(row => row.kind !== kind || row.path !== path)]
     status.textContent = 'Synthetic host confirmed navigation. Actual Typora Save/Discard/Cancel still requires native testing.'
     error = ''; render()
   },
@@ -53,10 +53,14 @@ function fixture(name: string) {
     if (name === 'long') locations.push(['file', '/Library/日本語/Café and a deliberately long document name for narrow panels.md', 'writing'])
     locations.forEach(([kind, path, groupId]) => apply({ type: 'favorite:add', kind, path, groupId }))
   }
-  nativeFixture = { status: 'ready', order: 'timestamps', entries: [
-    { kind: 'file', path: '/Notes/Ideas.md', openedAt: Date.now() - 120000 },
-    { kind: 'folder', path: '/Library/Research', openedAt: Date.now() - 300000 },
-    { kind: 'file', path: '/Projects/Atlas/Project brief.md', openedAt: Date.now() - 900000 },
+  // Like Typora's list: an order, never ages. Production does not display native dates.
+  nativeFixture = { status: 'ready', order: 'global', entries: [
+    { kind: 'file', path: '/Notes/Ideas.md' },
+    { kind: 'folder', path: '/Library/Research' },
+    { kind: 'file', path: '/Projects/Atlas/Project brief.md' },
+    { kind: 'file', path: '/Library/Research/Reading list.md' },
+    { kind: 'folder', path: '/Projects/Atlas' },
+    { kind: 'file', path: '/Notes/Meeting notes.md' },
   ] }
   if (name === 'empty') { nativeFixture.entries = []; current = {} }
   if (name === 'saved') current = { file: '/Projects/Atlas/Project brief.md', folder: '/Projects/Atlas' }

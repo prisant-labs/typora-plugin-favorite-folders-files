@@ -31,6 +31,11 @@
   Adapt only host services and synthetic fixtures; do not maintain a second UI.
 - Run `pnpm prototype:build` after source changes and commit the generated HTML.
   `pnpm prototype:check` must pass in CI without first regenerating the page.
+- After visible changes, run `pnpm docs:screenshots` to regenerate the README
+  images from the visual anchor, and review every image for private content
+  before committing it. Only metadata-free PNGs under `docs/images/` pass the
+  privacy check.
+- Record user-visible changes in `CHANGELOG.md`.
 - Add or update tests before implementing behavior.
 - Run `pnpm test:run` and `pnpm typecheck` for code changes.
 - Run `pnpm run pack` and `pnpm release:check` before preparing a release artifact.
