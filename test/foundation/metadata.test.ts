@@ -18,7 +18,7 @@ describe('approved public metadata', () => {
 
     expect(pkg).toMatchObject({
       private: true,
-      name: 'typora-plugin-quick-access-folder-files',
+      name: 'typora-plugin-favorite-folders-files',
       version: '0.1.0',
       author: 'Prisant Labs',
       license: 'MIT',
@@ -29,12 +29,12 @@ describe('approved public metadata', () => {
     const manifest = readJson('src/manifest.json')
 
     expect(manifest).toEqual({
-      id: 'prisant-labs.quick-access',
-      name: 'Quick Access',
-      description: 'Keep pinned and recent folders and files within reach in Typora.',
+      id: 'prisant-labs.favorite-folders-files',
+      name: 'Favorites',
+      description: 'Keep favorite folders and Markdown files within reach in Typora.',
       author: 'Prisant Labs',
       authorUrl: 'https://github.com/prisant-labs',
-      repo: 'prisant-labs/typora-plugin-quick-access-folder-files',
+      repo: 'prisant-labs/typora-plugin-favorite-folders-files',
       version: '0.1.0',
       minAppVersion: '1.4.0',
       minCoreVersion: '2.10.21',
@@ -46,7 +46,7 @@ describe('approved public metadata', () => {
     const readme = resolve(root, 'README.md')
     const license = resolve(root, 'LICENSE.md')
 
-    expect(readFileSync(readme, 'utf8')).toMatch(/^# Quick Access for Typora$/m)
+    expect(readFileSync(readme, 'utf8')).toMatch(/^# Favorites for Typora$/m)
     expect(existsSync(license), 'LICENSE.md must exist').toBe(true)
     if (existsSync(license)) {
       expect(readFileSync(license, 'utf8')).toContain(

@@ -10,7 +10,7 @@ function parseArguments(args) {
   const options = {
     dist: path.resolve('dist'),
     output: path.resolve('plugin.zip'),
-    brandedOutput: path.resolve('plugin_typora-quick-access-folder-files.zip'),
+    brandedOutput: path.resolve('plugin_typora-favorite-folders-files.zip'),
   }
   const names = new Map([
     ['--dist', 'dist'],

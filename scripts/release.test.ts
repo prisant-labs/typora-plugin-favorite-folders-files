@@ -7,12 +7,12 @@ import { validateMetadata, validatePayload } from './release.mjs'
 
 const root = resolve(import.meta.dirname, '..')
 const manifest = {
-  id: 'prisant-labs.quick-access',
-  name: 'Quick Access',
-  description: 'Keep pinned and recent folders and files within reach in Typora.',
+  id: 'prisant-labs.favorite-folders-files',
+  name: 'Favorites',
+  description: 'Keep favorite folders and Markdown files within reach in Typora.',
   author: 'Prisant Labs',
   authorUrl: 'https://github.com/prisant-labs',
-  repo: 'prisant-labs/typora-plugin-quick-access-folder-files',
+  repo: 'prisant-labs/typora-plugin-favorite-folders-files',
   version: '0.1.0',
   minAppVersion: '1.4.0',
   minCoreVersion: '2.10.21',
@@ -20,7 +20,7 @@ const manifest = {
 }
 const pkg = {
   private: true,
-  name: 'typora-plugin-quick-access-folder-files',
+  name: 'typora-plugin-favorite-folders-files',
   description: manifest.description,
   author: manifest.author,
   license: 'MIT',

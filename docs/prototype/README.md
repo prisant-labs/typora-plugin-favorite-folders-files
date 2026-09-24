@@ -1,0 +1,37 @@
+# Current solution visual anchor
+
+Open `quick-access.html` directly in a browser. It needs no server, installed
+plugin, network, fonts, or assets. The production `src/favorites-panel.ts`, `src/model.ts`
+and `src/style.scss` render the sidebar; the preview replaces only host state
+and actions with synthetic fixtures.
+
+The preview includes light/dark themes, 280/340/400-pixel panel widths,
+everyday/first-use/long-path scenarios, all-saved and mixed Add states, native
+history unavailable/recording-off/per-kind states, and simulated cancellation
+or save failure. Add, Move, Manage groups and Arrange Favorites use the same
+draft and atomic replay code as the native plugin. Recent entries are a
+synthetic stand-in for Typora's live Recent list; opening a location updates
+them, as Typora's list would. The settings page uses the shared production
+controls and its own isolated synthetic preview. Reading Typora's real Recent
+list is Windows-only.
+These controls are outside the plugin. The displayed editor and Outline View
+are context, not additional Favorites features.
+
+## Updating the anchor
+
+1. Change production source and appropriate tests.
+2. Run `pnpm prototype:build`.
+3. Open the generated HTML and exercise the affected states.
+4. Run `pnpm prototype:check`, tests, typecheck and packaging checks.
+5. If the change is visible, run `pnpm docs:screenshots` and review the
+   regenerated README images in `docs/images/`.
+6. Commit source, HTML and images together.
+
+The generator fingerprints all production sources, preview sources, package
+and lockfile, license and generator. `prototype:check` generates in memory,
+compares normalized bytes, and never rewrites the committed file. CI checks
+freshness before tests. The preview is excluded from the plugin ZIP.
+
+Freshness and DOM tests establish source coupling and interaction behavior.
+Rendered browser review establishes appearance in the tested browser. Neither
+proves native Typora navigation, cancellation or persistence.

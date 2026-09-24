@@ -10,6 +10,8 @@ node_modules/
 
 # Generated release assets belong on GitHub Releases, not in Git history.
 /plugin.zip
+/plugin_typora-favorite-folders-files.zip
+# Retain the ignore for locally preserved archives made before the repository rename.
 /plugin_typora-quick-access-folder-files.zip
 
 # Test coverage, browser automation output, and local tool caches.
