@@ -69,8 +69,10 @@ You need Typora 1.4.0 or newer, and
 [Typora Community Plugin](https://github.com/typora-community-plugin/typora-community-plugin)
 2.10.21 or newer, on Windows or macOS.
 
-- **From the Plugin Marketplace:** search for **Favorites**, install it, then
-  enable it under **Installed Plugins**.
+- **From the Plugin Marketplace** (once listed; the listing is
+  [pending review](https://github.com/typora-community-plugin/typora-plugin-releases/pull/13)):
+  search for **Favorites**, install it, then enable it under **Installed
+  Plugins**. Until then, install manually.
 - **Manually:** download `plugin.zip` from the
   [latest release](https://github.com/prisant-labs/typora-plugin-favorite-folders-files/releases/latest)
   and extract it into a folder named `prisant-labs.favorite-folders-files`
