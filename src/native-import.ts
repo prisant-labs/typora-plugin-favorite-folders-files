@@ -2,10 +2,17 @@ import { normalizePath, type LocationKind, type Platform } from './model'
 import { isMarkdown } from './host'
 import { normalizeHistory, type NativeHistorySnapshot } from './native-history'
 
-/** Typora's own Recent menu sorts with `-a.date + b.date`: numbers, numeric strings and Dates coerce. */
+// Full ISO 8601 date-time with a zone. Looser text that Date.parse accepts is not a date here.
+const isoDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/
+
+/**
+ * Typora stores file dates as epoch milliseconds but folder dates as ISO 8601 text, the same
+ * instant scale. Numbers, numeric strings and Dates coerce as in Typora's own `-a.date + b.date`.
+ */
 function sortKey(value: unknown): number | undefined {
-  const coercible = typeof value === 'number' || (typeof value === 'string' && value.trim() !== '') || Object.prototype.toString.call(value) === '[object Date]'
-  const key = coercible ? Number(value) : Number.NaN
+  let key = Number.NaN
+  if (typeof value === 'number' || Object.prototype.toString.call(value) === '[object Date]') key = Number(value)
+  else if (typeof value === 'string' && value.trim() !== '') key = isoDateTime.test(value.trim()) ? Date.parse(value) : Number(value)
   return Number.isFinite(key) && key >= 0 ? key : undefined
 }
 

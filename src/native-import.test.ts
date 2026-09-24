@@ -25,8 +25,22 @@ describe('manual Typora Recent snapshot', () => {
     expect(result.entries.map(row => row.path)).toEqual(['C:/Fixture/New.md', 'C:/Fixture/Folder', 'C:/Fixture/Old.md'])
     expect(result.entries.every(row => row.openedAt === undefined)).toBe(true)
   })
+  it('merges epoch-millisecond file dates with the ISO 8601 folder dates Typora stores', () => {
+    // Shape observed in a real Typora payload: files carry numbers, folders ISO strings, pins first.
+    const result = parseTyporaRecent({
+      files: [{ name: 'New.md', path: 'C:/Fixture/New.md', date: Date.parse('2026-09-24T12:00:00.000Z') }, { name: 'Old.md', path: 'C:/Fixture/Old.md', date: Date.parse('2026-09-10T12:00:00.000Z') }],
+      folders: [
+        { name: 'Pinned', path: 'C:/Fixture/Pinned', pinned: true, date: '2026-09-18T23:34:53.724Z' },
+        { name: 'Recent', path: 'C:/Fixture/Recent', date: '2026-09-23T23:57:19.780+00:00' },
+      ],
+    }, 'win32')
+    expect(result.order).toBe('global')
+    expect(result.entries.map(row => row.path)).toEqual(['C:/Fixture/New.md', 'C:/Fixture/Recent', 'C:/Fixture/Pinned', 'C:/Fixture/Old.md'])
+    expect(result.entries.every(row => row.openedAt === undefined)).toBe(true)
+  })
   it('keeps per-kind order when any date is not one Typora could sort', () => {
-    for (const date of ['yesterday', '', ' ', true, -5, Number.NaN, {}, null]) {
+    // Loose text Date.parse would accept is rejected: only full ISO 8601 date-times count.
+    for (const date of ['yesterday', '', ' ', true, -5, Number.NaN, {}, null, '2026-09', 'Sep 23 2026', '2026-09-23', '2026-09-23 23:57:19', '1969-12-31T23:59:59.000Z']) {
       const result = parseTyporaRecent({ files: [{ path: 'C:/Fixture/A.md', date: 1 }], folders: [{ path: 'C:/Fixture', date }] }, 'win32')
       expect(result.order).toBe('per-kind')
     }

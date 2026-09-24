@@ -19,7 +19,7 @@ describe('approved public metadata', () => {
     expect(pkg).toMatchObject({
       private: true,
       name: 'typora-plugin-favorite-folders-files',
-      version: '0.1.0',
+      version: '0.1.1',
       author: 'Prisant Labs',
       license: 'MIT',
     })
@@ -35,7 +35,7 @@ describe('approved public metadata', () => {
       author: 'Prisant Labs',
       authorUrl: 'https://github.com/prisant-labs',
       repo: 'prisant-labs/typora-plugin-favorite-folders-files',
-      version: '0.1.0',
+      version: '0.1.1',
       minAppVersion: '1.4.0',
       minCoreVersion: '2.10.21',
       platforms: ['win32', 'darwin'],

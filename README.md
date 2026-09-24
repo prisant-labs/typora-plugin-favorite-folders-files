@@ -7,7 +7,7 @@ alongside them.
 
 ![The Favorites panel in Typora, showing grouped folders and Markdown files](docs/images/favorites-panel.png)
 
-> **Early release (0.1.0).** Favorites is new. Windows is the development
+> **Early release.** Favorites is new. Windows is the development
 > platform; macOS is supported but not yet tested natively. Please
 > [report problems](https://github.com/prisant-labs/typora-plugin-favorite-folders-files/issues).
 
