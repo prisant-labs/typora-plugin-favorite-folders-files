@@ -3,6 +3,14 @@
 All notable changes to Favorites for Typora are recorded here. Versions follow
 [semantic versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- Favorites is now listed in Typora's **Plugin Marketplace**
+  ([typora-plugin-releases#13](https://github.com/typora-community-plugin/typora-plugin-releases/pull/13),
+  merged 2026-09-25), so it can be installed from there as well as manually.
+
 ## 0.1.1 (2026-09-24)
 
 ### Fixed

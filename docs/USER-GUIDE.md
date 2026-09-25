@@ -29,11 +29,9 @@ Favorites is a plugin for [Typora Community Plugin](https://github.com/typora-co
 - Typora Community Plugin 2.10.21 or newer
 - Windows or macOS (the Recent list is Windows-only for now)
 
-**From the marketplace** (once listed; the listing is
-[pending review](https://github.com/typora-community-plugin/typora-plugin-releases/pull/13)):
-open Typora's settings, go to **Plugin Marketplace**, search for **Favorites**,
-and install it. Then go to **Installed Plugins** and tick **Favorites** to
-enable it. Until then, install it manually.
+**From the marketplace:** open Typora's settings, go to **Plugin
+Marketplace**, search for **Favorites**, and install it. Then go to
+**Installed Plugins** and tick **Favorites** to enable it.
 
 **Manually:** download `plugin.zip` from the
 [latest release](https://github.com/prisant-labs/typora-plugin-favorite-folders-files/releases/latest).
@@ -159,10 +157,8 @@ appear whichever folder is open.
 ## FAQ
 
 **Why can't I find Favorites in the Plugin Marketplace?**
-The marketplace listing may still be
-[pending review](https://github.com/typora-community-plugin/typora-plugin-releases/pull/13).
-Also, if you installed it manually, it only appears under **Installed
-Plugins**; the Marketplace tab lists plugins from the online catalog only.
+If you installed it manually, it only appears under **Installed Plugins**; the
+Marketplace tab lists plugins from the online catalog only.
 
 **Why is "Recently opened" greyed out?**
 It follows Typora's Recent list. It is unavailable when that list is

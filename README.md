@@ -69,10 +69,9 @@ You need Typora 1.4.0 or newer, and
 [Typora Community Plugin](https://github.com/typora-community-plugin/typora-community-plugin)
 2.10.21 or newer, on Windows or macOS.
 
-- **From the Plugin Marketplace** (once listed; the listing is
-  [pending review](https://github.com/typora-community-plugin/typora-plugin-releases/pull/13)):
-  search for **Favorites**, install it, then enable it under **Installed
-  Plugins**. Until then, install manually.
+- **From the Plugin Marketplace:** in Typora's settings, open **Plugin
+  Marketplace**, search for **Favorites**, install it, then enable it under
+  **Installed Plugins**.
 - **Manually:** download `plugin.zip` from the
   [latest release](https://github.com/prisant-labs/typora-plugin-favorite-folders-files/releases/latest)
   and extract it into a folder named `prisant-labs.favorite-folders-files`
@@ -96,8 +95,9 @@ to Community Plugin "vaults", and an FAQ.
 
 ## Status and known limits
 
-- **Windows:** the maintainer has installed and exercised Favorites there. The
-  full [native test checklist](docs/NATIVE-TESTING.md) is still in progress.
+- **Windows:** the maintainer has installed and exercised Favorites there,
+  including installing it from the Plugin Marketplace. The full
+  [native test checklist](docs/NATIVE-TESTING.md) is still in progress.
 - **macOS:** a supported target, not yet tested natively. Recent isn't
   available on macOS yet.
 - **Recently opened** sorting needs a date on every entry in Typora's Recent

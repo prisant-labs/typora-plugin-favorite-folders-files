@@ -15,6 +15,10 @@ DOM/storage tests do not establish native behavior.
    vault-local `.typora/plugins/` directory. Enable **Favorites** in Core settings.
    Its sidebar is titled **Favorites**.
 
+To check the published build instead, install **Favorites** from Core's
+**Plugin Marketplace**. The marketplace always installs the latest GitHub
+release, not a local candidate.
+
 The identical `plugin_typora-favorite-folders-files.zip` archive can also be
 used. The repository and package slug is `typora-plugin-favorite-folders-files`;
 the plugin folder, plugin ID and saved database are `prisant-labs.favorite-folders-files`.
