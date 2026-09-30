@@ -26,16 +26,19 @@ export default class QuickAccessPlugin extends Plugin {
       showInFinder: path => bridge().showInFinder(path),
     })
     const collection = new FavoritesController(new FavoritesIndexedDbStore(app.platform), app.platform)
-    const container = document.createElement('div')
+    const container = document.createElement('div'); container.classList.add('qa-sidebar-panel')
     const runtime = new FavoritesRuntime(host, collection, {
       readHistory: app.platform === 'win32' ? async () => bridge().invoke('setting.getRecentFiles') : undefined,
       isVisible: () => container.isConnected && container.getClientRects().length > 0,
     })
     let disposed = false
     const settings = () => { if (!disposed) return openSettings(app) }
+    // Core hides Typora's Windows sidebar header for every panel but not the macOS one (.sidebar-osx-tab).
+    const markSidebar = (open: boolean) => document.getElementById('typora-sidebar')?.classList.toggle('qa-favorites-open', open)
     // Fresh class per enable: core keeps a stale private activePanel after removal.
     class QuickAccessSidebarPanel extends SidebarPanel {
-      show() { if (!disposed) { super.show(); void runtime.syncHistory(true) } }
+      show() { if (!disposed) { super.show(); markSidebar(true); void runtime.syncHistory(true) } }
+      hide() { markSidebar(false); super.hide() }
     }
     const panel = new QuickAccessSidebarPanel(app.workspace.ribbon, app.workspace.sidebar)
     panel.containerEl = container
