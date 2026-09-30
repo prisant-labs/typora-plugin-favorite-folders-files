@@ -205,4 +205,4 @@
 // container keeps the panel out of that flex flow on both. Longhands suit older WebKit.
 .qa-favorites.qa-sidebar-panel { position: absolute; top: 0; right: 0; bottom: 0; left: 0; height: auto; }
 // Typora's macOS header row keeps its last tab title ("Outline") while Favorites is open.
-#typora-sidebar.qa-favorites-open > .sidebar-osx-tab { display: none; }
+#typora-sidebar.qa-favorites-open .sidebar-osx-tab { display: none; }
