@@ -77,6 +77,13 @@ Keep real paths, screenshots and native history in local-only receipts.
   basenames. Check hover/focus/touch actions, keyboard radio/menu behavior, input
   composition, narrow popover bounds, drag autoscroll and outside-drop cancellation.
 - Repeat host checks with Core tabs enabled/disabled and separately on macOS.
+- Check that the panel fills the sidebar at narrow and wide sidebar widths, on
+  Windows and on macOS. On macOS, Typora's own header row (the "Outline" or
+  "Files" title and its search button) should be hidden while Favorites is open
+  and should return after switching to Files or Outline from the ribbon. Also
+  switch with Typora's View menu or shortcuts while Favorites is open; Core does
+  not intercept those. Right-click the ribbon: the Favorites entry should show a
+  small star beside its name, like Files and Outline.
 
 ## Native Recent capability gate
 
