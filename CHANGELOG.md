@@ -3,7 +3,25 @@
 All notable changes to Favorites for Typora are recorded here. Versions follow
 [semantic versioning](https://semver.org/).
 
-## Unreleased
+## 0.1.2 (2026-09-30)
+
+### Fixed
+
+- On macOS, the **Favorites** panel now fills the sidebar. It had been
+  squeezed into the right-hand part of the sidebar, with the header buttons
+  overlapping the title and the toolbar cut off. Typora lays out the sidebar
+  as a row on macOS and a column on Windows, and the panel now fills it either
+  way.
+- On macOS, Typora's own sidebar header row no longer shows above Favorites.
+  That row kept its last title (for example "Outline") while Favorites was
+  open. It returns when you switch to Files or Outline, and the ribbon keeps
+  the Files, Outline and Search buttons.
+- Both macOS fixes were checked in a browser reproduction of Typora's macOS
+  sidebar layout. They have not yet been re-tested in Typora on macOS.
+- In the menu that opens when you right-click the ribbon, **Favorites** now
+  shows a small star beside its name, like the other entries, instead of a
+  large star above it. Checked in a browser reproduction of Core's menu; not
+  yet re-tested in Typora.
 
 ### Changed
 

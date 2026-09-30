@@ -62,6 +62,8 @@
   @media (hover: none) { .qa-row-actions { opacity: 1; } }
 }
 .qa-ribbon-icon { width: 24px; height: 24px; display: block; }
+// Core clones the ribbon icon into its right-click menu; match that menu's Font Awesome glyphs.
+.typ-menuitem .qa-ribbon-icon { display: inline-block; width: 1em; height: 1em; vertical-align: -.125em; stroke-width: 2; position: relative; left: -.75rem; }
 
 // Frozen Favorites surface. Kept scoped so native themes supply the palette.
 .qa-favorites {
@@ -197,3 +199,10 @@
   .qa-drop-before::before { top: 0; } .qa-drop-after::after { bottom: 0; }
   @media (hover: none) { .qa-row-actions { opacity: 1; pointer-events: auto; } .qa-name { padding-right: 78px; } }
 }
+
+// Typora's #sidebar-content is a flex column on Windows but a flex row on macOS, where its
+// zero-height search strip (width: 100%) takes a share of the width. Filling the positioned
+// container keeps the panel out of that flex flow on both. Longhands suit older WebKit.
+.qa-favorites.qa-sidebar-panel { position: absolute; top: 0; right: 0; bottom: 0; left: 0; height: auto; }
+// Typora's macOS header row keeps its last tab title ("Outline") while Favorites is open.
+#typora-sidebar.qa-favorites-open > .sidebar-osx-tab { display: none; }

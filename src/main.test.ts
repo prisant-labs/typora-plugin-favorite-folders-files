@@ -37,8 +37,13 @@ describe('plugin lifecycle', () => {
     // While the panel is hidden, Typora's Recent list is not read.
     expect(invoke).not.toHaveBeenCalled()
     vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{}] as unknown as DOMRectList)
+    const sidebarEl = document.createElement('div'); sidebarEl.id = 'typora-sidebar'; document.body.append(sidebarEl)
     panel.show(); await vi.advanceTimersByTimeAsync(0)
     expect(document.querySelector('.qa-favorites')).not.toBeNull()
+    // Sidebar-only hook: fills #sidebar-content whatever its flex direction (row on macOS).
+    expect(panel.containerEl.classList.contains('qa-sidebar-panel')).toBe(true)
+    // Hides Typora's macOS header row, which Core leaves showing a stale tab title.
+    expect(sidebarEl.classList.contains('qa-favorites-open')).toBe(true)
     expect(panel.containerEl.querySelector('h2')?.textContent).toBe('Favorites')
     expect(app.workspace.on).toHaveBeenCalledWith('file:open', expect.any(Function))
     const commands = (plugin as unknown as { commands: { title: string; callback(): void }[] }).commands
@@ -58,11 +63,17 @@ describe('plugin lifecycle', () => {
     expect(app.commands.run).toHaveBeenCalledTimes(2)
     expect(app.commands.run).toHaveBeenLastCalledWith('settings:open', [])
     expect(document.querySelectorAll('.typ-modal__wrapper')).toHaveLength(0)
+    ;(panel as unknown as { hide(): void }).hide()
+    expect(sidebarEl.classList.contains('qa-favorites-open')).toBe(false)
+    panel.show(); await vi.advanceTimersByTimeAsync(0)
+    expect(sidebarEl.classList.contains('qa-favorites-open')).toBe(true)
     plugin.onunload()
     expect(remove).toHaveBeenCalledOnce(); expect(unsubscribe).toHaveBeenCalledTimes(4)
     expect(vi.getTimerCount()).toBe(0); expect(document.querySelector('.quick-access')).toBeNull()
     expect(document.querySelectorAll('.typ-modal__wrapper')).toHaveLength(0)
+    expect(sidebarEl.classList.contains('qa-favorites-open')).toBe(false)
     panel.show(); expect(document.querySelector('.quick-access')).toBeNull()
+    expect(sidebarEl.classList.contains('qa-favorites-open')).toBe(false)
     commands[1].callback(); expect(app.commands.run).toHaveBeenCalledTimes(2)
   })
 })
