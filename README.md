@@ -8,7 +8,8 @@ alongside them.
 ![The Favorites panel in Typora, showing grouped folders and Markdown files](docs/images/favorites-panel.png)
 
 > **Early release.** Favorites is new. Windows is the development
-> platform; macOS is supported but not yet tested natively. Please
+> platform. macOS is supported, and its first layout fixes have not yet been
+> re-tested there. Please
 > [report problems](https://github.com/prisant-labs/typora-plugin-favorite-folders-files/issues).
 
 ## Features
@@ -98,8 +99,13 @@ to Community Plugin "vaults", and an FAQ.
 - **Windows:** the maintainer has installed and exercised Favorites there,
   including installing it from the Plugin Marketplace. The full
   [native test checklist](docs/NATIVE-TESTING.md) is still in progress.
-- **macOS:** a supported target, not yet tested natively. Recent isn't
-  available on macOS yet.
+- **macOS:** a supported target. The first run on macOS (0.1.1) found the
+  panel squeezed to one side of the sidebar, with Typora's own "Outline"
+  header row showing above it. 0.1.2 fixes both, but it has not yet been
+  re-tested on macOS. The underlying sidebar behavior affects every plugin
+  panel and is reported to Typora Community Plugin as
+  [typora-community-plugin#102](https://github.com/typora-community-plugin/typora-community-plugin/issues/102).
+  Recent isn't available on macOS yet.
 - **Recently opened** sorting needs a date on every entry in Typora's Recent
   list. When some entries have none, it stays unavailable and each Recent tab
   keeps Typora's own order.
