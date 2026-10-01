@@ -13,8 +13,9 @@ All notable changes to Favorites for Typora are recorded here. Versions follow
   panel is visible, kept in memory, and never saved. Typora passes its macOS
   Recent files without dates, so on macOS each tab keeps Typora's order and
   **Recently opened** sorting is unavailable.
-- Both macOS channels were found in Typora's page code. Neither has been
-  tested in Typora on macOS yet.
+- Both macOS channels were found in Typora's page code and confirmed on a Mac
+  by the Recent probe in `test/native/probes/`. Favorites' macOS Recent itself
+  has not yet been tested in Typora on macOS.
 
 ### Changed
 

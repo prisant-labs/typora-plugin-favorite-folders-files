@@ -108,8 +108,9 @@ to Community Plugin "vaults", and an FAQ.
   panel and is reported to Typora Community Plugin as
   [typora-community-plugin#102](https://github.com/typora-community-plugin/typora-community-plugin/issues/102).
   Recent on macOS is in the development source but not yet in a release. It
-  reads two macOS channels found in Typora's page code, and nobody has tested
-  it in Typora on macOS yet.
+  reads two macOS channels found in Typora's page code. A probe confirmed both
+  on a Mac, but Favorites' macOS Recent itself has not been tested in Typora on
+  macOS yet.
 - **Recently opened** sorting needs a date on every entry in Typora's Recent
   list. When some entries have none, it stays unavailable and each Recent tab
   keeps Typora's own order.

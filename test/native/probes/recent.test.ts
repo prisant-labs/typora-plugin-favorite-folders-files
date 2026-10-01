@@ -91,8 +91,18 @@ describe('Recent capability probe', () => {
     const earlier = function (this: unknown, paths: unknown) { return Object.getPrototypeOf(t.panel).setRecentFiles.call(this, paths) }
     t.panel.setRecentFiles = earlier
     const { report } = await run()
-    expect(report).toContain('Quick Open already hooked (another plugin or a Favorites build): setRecentFiles')
+    expect(report).toContain('Already wrapped before the probe: setRecentFiles (another plugin or a Favorites build)')
     expect(t.panel.setRecentFiles).toBe(earlier); expect(own(t.panel)).toEqual(['setRecentFiles'])
+  })
+  it('names Community Plugin Core as the usual owner of an initFileCache wrapper', async () => {
+    // Core wraps initFileCache for its ignored-files setting, so every Core install shows this.
+    const t = mac()
+    const core = function (this: unknown, ...args: unknown[]) { return Object.getPrototypeOf(t.panel).initFileCache.apply(this, args) }
+    t.panel.initFileCache = core
+    const { report } = await run()
+    expect(report).toContain('Already wrapped before the probe: initFileCache (Community Plugin Core does this for its ignored-files setting)')
+    expect(report).toContain('RESULT: PASS')
+    expect(t.panel.initFileCache).toBe(core)
   })
   it('reports the Windows getter\'s shape without paths', async () => {
     vi.stubGlobal('File', { isNode: true, isMac: false })

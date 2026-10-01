@@ -64,7 +64,8 @@ void (async () => {
     const names = ['setRecentFiles', 'initFileCache', 'updateCache'].filter(name => typeof panel[name] === 'function')
     say(`Quick Open methods: ${names.join(', ') || 'none'}`)
     const own = names.filter(name => Object.prototype.hasOwnProperty.call(panel, name))
-    if (own.length) say(`Quick Open already hooked (another plugin or a Favorites build): ${own.join(', ')}`)
+    const owner = name => name === 'initFileCache' ? 'Community Plugin Core does this for its ignored-files setting' : 'another plugin or a Favorites build'
+    if (own.length) say(`Already wrapped before the probe: ${own.map(name => `${name} (${owner(name)})`).join(', ')}`)
     let listener = () => {}
     const hooks = names.map(name => {
       const had = Object.prototype.hasOwnProperty.call(panel, name), prior = panel[name]

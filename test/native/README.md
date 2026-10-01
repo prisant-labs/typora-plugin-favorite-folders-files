@@ -103,8 +103,10 @@ Open after `bridge.callHandler('quickOpen.cacheRecentFiles')`. Favorites sees
 that list through pass-through wrappers on `File.editor.quickOpenPanel`'s
 `setRecentFiles` and `initFileCache`, the two Quick Open methods that replace
 the whole list. The wrappers are installed on the first read and removed when
-Favorites unloads. Both channels were found in Typora's page code. Neither has
-been observed on a Mac yet, so run the probe below before trusting a macOS result.
+Favorites unloads. Both channels were found in Typora's page code. On
+2026-10-01, the Recent probe confirmed both on the maintainer's Mac (see
+[macOS Recent](#macos-recent)). Favorites' own macOS Recent has not yet been
+tested in Typora on macOS.
 
 ### Recent probe
 
@@ -172,9 +174,12 @@ edits one entry. Read the report this way:
   it must not be released.
 - **"not absolute paths (file URL)"** means Favorites would show an error
   instead of a list.
-- **"Quick Open already hooked"** means another plugin, or a Favorites build
-  with macOS Recent, had already wrapped Quick Open. Hide that panel or disable
-  that plugin, then run the probe again.
+- **"Already wrapped before the probe"** names Quick Open methods that something
+  had wrapped before the probe ran. `initFileCache` is normal: Community Plugin
+  Core wraps it for its ignored-files setting, and Favorites forwards to Core's
+  wrapper. Any other name means another plugin, or a Favorites build with macOS
+  Recent whose panel was showing. Hide that panel or disable that plugin, then
+  run the probe again.
 - **Date types** other than `none` on folder rows change nothing in Favorites,
   which keeps Typora's order on macOS. Record them anyway; they decide whether
   macOS could ever offer **Recently opened** sorting.
@@ -186,14 +191,26 @@ First observation on a Mac, 2026-10-01: `JSBridge.invoke` exists on macOS, and
 pending while the maintainer watched. That matches Typora's page code, where
 only the Electron build answers that call.
 
+Probe result on the maintainer's Mac, 2026-10-01: **`RESULT: PASS`**.
+
+- Both passes received `setRecentFiles` with 10 Recent files, all absolute
+  paths, after 159 ms and 31 ms. Typora sends the list again on every request.
+- `library.getRecentFolders` answered both times, within 12 ms. It returned 103
+  folder rows shaped `{name path pinned}`, with no dates and absolute paths.
+  The two pinned folders came first.
+- `initFileCache` was already wrapped, by Core.
+
+On that Mac, Recent → **Folders** will therefore list 103 folders, with Typora's
+pinned folders first, and **Files** will list up to 10.
+
 Then show the Favorites panel again and check, using disposable native history:
 
 - Recent → **Files** matches Quick Open's recent files (Cmd+Shift+O with an empty
   query), filtered to Markdown files and in the same order.
 - Recent → **Folders** contains the folders in the sidebar's folder menu. The
-  menu is not an exact reference: it shows at most six folders, puts pinned
-  folders first, and lists the open folder separately. Favorites keeps the
-  order Typora returns and does not move pinned folders.
+  menu is not an exact reference: it shows at most six folders and lists the
+  open folder separately. Favorites keeps the order Typora returns, which puts
+  pinned folders first.
 - Quick Open still lists recent files while Favorites is enabled, and after
   Favorites is disabled.
 - Open a file from outside Recent. While the panel is visible, Recent shows it
