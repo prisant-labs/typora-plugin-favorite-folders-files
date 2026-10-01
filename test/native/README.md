@@ -106,13 +106,30 @@ the whole list. The wrappers are installed on the first read and removed when
 Favorites unloads. Both channels were found in Typora's page code. Neither has
 been observed on a Mac yet, so run the probe below before trusting a macOS result.
 
-Dates are accepted in the forms Typora's own Recent menu sorts (numbers, numeric
-strings and Date objects). To inspect the payload shape without printing paths,
-run this in Typora's DevTools console and record only the table:
+### Recent probe
 
-```js
-Promise.resolve(JSBridge.invoke('setting.getRecentFiles')).then(r => console.table(['files', 'folders'].flatMap(k => (r?.[k] ?? []).map((row, i) => ({ list: k, i, keys: Object.keys(row).sort().join(' '), date: Object.prototype.toString.call(row.date), sortable: Number.isFinite(Number(row.date)) })))))
-```
+[`probes/recent.js`](probes/recent.js) checks Typora's Recent channels on
+Windows or macOS and reports what it finds. The report holds counts, kinds, key
+names, date types and timings, but never paths or names. A channel that does not
+answer within 5 seconds is reported as "no answer", so the probe never leaves a
+request pending.
+
+1. Hide the Favorites panel by switching the sidebar to Files. Favorites then
+   does not read Recent while the probe runs.
+2. Open Typora's DevTools: turn on Typora's debugging option, right-click, and
+   choose **Inspect Element**.
+3. Open [`probes/recent.js`](probes/recent.js) on GitHub, use **Copy raw file**,
+   paste it into the DevTools console, and press Enter.
+4. Wait for the report window. It takes up to 10 seconds on macOS, which asks
+   twice, and under a second on Windows. **Copy report** copies the whole
+   report. The console also prints it as plain text.
+5. Record the report. Its last lines read `RESULT: PASS`, or `RESULT: FAIL`
+   followed by the reasons.
+
+On Windows, the report shows the shapes of the getter's `files` and `folders`
+lists and their date types. Typora's own Recent menu sorts by those dates, and
+Favorites accepts the same forms: numbers, numeric strings, Date objects, and
+full ISO 8601 text.
 
 Using disposable native history, check:
 
@@ -141,60 +158,35 @@ and automated tests do not establish those results. Do not add a history collect
 
 ### macOS Recent
 
-First confirm the channels with this probe. It prints counts, value kinds, key
-names, date types and timings, but no paths or names. It watches the three Quick
-Open methods that can carry Recent files: `setRecentFiles` and `initFileCache`
-replace the whole list, and `updateCache` edits one entry. Disable Favorites
-first, so that its own reads do not overlap the probe. Then open Typora's
-DevTools (turn on Typora's debugging option, right-click, and choose **Inspect
-Element**) and paste:
+Run the [Recent probe](#recent-probe) first. On macOS it asks for both lists
+twice, because the second request shows whether Typora sends the files list
+again. It watches the three Quick Open methods that can carry Recent files:
+`setRecentFiles` and `initFileCache` replace the whole list, and `updateCache`
+edits one entry. Read the report this way:
 
-```js
-(() => {
-  const qo = File.editor.quickOpenPanel, t0 = Date.now()
-  if (qo.favoritesProbe) return console.log('probe already running: wait for "restored", then run it again')
-  const kind = x => typeof x === 'string' ? (x.startsWith('/') ? 'absolute path' : x.startsWith('file:') ? 'file URL' : 'other text') : x && typeof x === 'object' ? Object.keys(x).sort().join(' ') : typeof x
-  const shape = v => Array.isArray(v) ? { count: v.length, kinds: [...new Set(v.map(kind))] } : kind(v)
-  const report = {
-    setRecentFiles: a => shape(a[0]),
-    initFileCache: a => ({ recentFiles: a[4] ? shape(a[4]) : 'none' }),
-    updateCache: a => ({ removed: kind(a[0]), added: kind(a[1]), group: a[2] }),
-  }
-  const hooks = Object.keys(report).filter(name => typeof qo[name] === 'function').map(name => ({ name, had: Object.prototype.hasOwnProperty.call(qo, name), prior: qo[name] }))
-  for (const hook of hooks) {
-    hook.probe = function (...args) { console.log(hook.name, Date.now() - t0, 'ms', JSON.stringify(report[hook.name](args))); return hook.prior.apply(this, args) }
-    qo[hook.name] = hook.probe
-  }
-  qo.favoritesProbe = true
-  bridge.callHandler('quickOpen.cacheRecentFiles')
-  bridge.callHandler('library.getRecentFolders', rows => console.log('folders', Date.now() - t0, 'ms', JSON.stringify(shape(rows)), JSON.stringify((Array.isArray(rows) ? rows : []).slice(0, 5).map(r => ({ date: Object.prototype.toString.call(r && r.date), pinned: Boolean(r && r.pinned) })))))
-  setTimeout(() => {
-    const kept = hooks.filter(hook => qo[hook.name] !== hook.probe)
-    for (const hook of hooks) if (qo[hook.name] === hook.probe) { if (hook.had) qo[hook.name] = hook.prior; else delete qo[hook.name] }
-    delete qo.favoritesProbe
-    console.log(kept.length ? 'not fully restored: reload the window' : 'restored')
-  }, 5000)
-})()
-```
+- **`RESULT: PASS`** means both passes received a full files list of absolute
+  paths, and the folders call answered both times. Continue with the checks
+  below.
+- **"Pass 2 returned no full Recent files list"** means Typora sends the list
+  only once. macOS Recent would work once and then fail on every later read, so
+  it must not be released.
+- **"not absolute paths (file URL)"** means Favorites would show an error
+  instead of a list.
+- **"Quick Open already hooked"** means another plugin, or a Favorites build
+  with macOS Recent, had already wrapped Quick Open. Hide that panel or disable
+  that plugin, then run the probe again.
+- **Date types** other than `none` on folder rows change nothing in Favorites,
+  which keeps Typora's order on macOS. Record them anyway; they decide whether
+  macOS could ever offer **Recently opened** sorting.
+- **Timings** show how fast each channel answers. Favorites waits 5 seconds for
+  both.
 
-Run it twice. Wait for `restored` after the first run before starting the
-second; an early second run refuses to start. Record every line. The probe
-answers four questions:
+First observation on a Mac, 2026-10-01: `JSBridge.invoke` exists on macOS, and
+`JSBridge.invoke('setting.getRecentFiles')` returned a promise that was still
+pending while the maintainer watched. That matches Typora's page code, where
+only the Electron build answers that call.
 
-- **Does a full files list arrive on every request?** Each run must log either a
-  `setRecentFiles` line or an `initFileCache` line whose `recentFiles` is not
-  `none`. The second run is the one that matters. If it logs neither, macOS
-  Recent would work once and then fail on every later read, so it must not be
-  released. A run that logs only `updateCache` lines also fails this check.
-- **Are the paths absolute?** `kinds` should read `absolute path` for files, and
-  `date name path pinned` (or similar) for folder rows. A `file URL` makes
-  Favorites show an error instead of a list.
-- **Do any rows carry dates?** Favorites keeps Typora's order on macOS either
-  way, so **Recently opened** sorting stays unavailable there. Record the date
-  types anyway; they decide whether macOS could ever offer that sort.
-- **How fast does each channel answer?** Favorites waits 5 seconds for both.
-
-Then re-enable Favorites and check, using disposable native history:
+Then show the Favorites panel again and check, using disposable native history:
 
 - Recent → **Files** matches Quick Open's recent files (Cmd+Shift+O with an empty
   query), filtered to Markdown files and in the same order.
