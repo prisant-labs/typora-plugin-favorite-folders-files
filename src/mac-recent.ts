@@ -1,28 +1,34 @@
 /** Typora's macOS WebKit bridge. `setting.getRecentFiles` exists only on its Electron branch. */
 export interface MacBridge { callHandler(name: string, ...args: unknown[]): unknown }
 /** Typora's Quick Open panel (`File.editor.quickOpenPanel`), which receives the macOS Recent files list. */
-export interface QuickOpenPanel { setRecentFiles(paths: unknown): unknown }
+export interface QuickOpenPanel { setRecentFiles(paths: unknown): unknown; initFileCache?(...args: unknown[]): unknown }
 export interface MacRecentServices { bridge(): MacBridge | undefined; quickOpen(): QuickOpenPanel | undefined }
 /** The Windows getter's `{ files, folders }` shape, so `parseTyporaRecent` stays the only validator. */
 export interface MacRecentPayload { files: unknown; folders: unknown }
 
-interface Observed {
-  panel: QuickOpenPanel
-  wrapper: QuickOpenPanel['setRecentFiles']
-  hadOwn: boolean
-  previous?: QuickOpenPanel['setRecentFiles']
+type Method = (...args: unknown[]) => unknown
+interface Hook { name: string; wrapper: Method; hadOwn: boolean; previous?: Method }
+
+/**
+ * Quick Open methods that replace the whole Recent files list, and where each one carries it.
+ * `initFileCache(paths, names, dates, total, recentFiles)` indexes a folder and sets the list
+ * only when its fifth argument is given. `updateCache` edits one entry and is not a full list.
+ */
+const LIST_METHODS: Record<string, (args: unknown[]) => unknown> = {
+  setRecentFiles: args => args[0],
+  initFileCache: args => args[4] || undefined,
 }
 
 /**
  * Reads Typora's macOS Recent list through the two channels its own page code uses:
  * folders from `library.getRecentFolders` (the sidebar folder menu), and files from the
  * list the macOS app sends Quick Open after `quickOpen.cacheRecentFiles`. Typora offers no
- * call that returns the files, so a read observes Quick Open's `setRecentFiles` through a
- * pass-through wrapper. Nothing is kept between reads.
+ * call that returns the files, so a read observes Quick Open through pass-through wrappers.
+ * Nothing is kept between reads.
  */
 export class MacRecentReader {
   private disposed = false
-  private observed?: Observed
+  private observed?: { panel: QuickOpenPanel; hooks: Hook[] }
   private readonly waiters = new Set<(paths: unknown) => void>()
   private readonly pending = new Set<(error: Error) => void>()
 
@@ -65,19 +71,27 @@ export class MacRecentReader {
     })
   }
 
+  /** Hooks each panel instance once. A script that later wraps over a hook keeps it in its chain. */
   private observe(panel: QuickOpenPanel) {
-    if (this.observed?.panel === panel && panel.setRecentFiles === this.observed.wrapper) return
-    // A replaced panel, or a script that wrapped over ours: release the old hook, then wrap what is current.
+    if (this.observed?.panel === panel) return
     this.restore()
-    const hadOwn = Object.prototype.hasOwnProperty.call(panel, 'setRecentFiles')
-    const original = panel.setRecentFiles
-    const reader = this
-    const wrapper = function (this: unknown, ...args: unknown[]) {
-      if (!reader.disposed && reader.observed?.wrapper === wrapper) reader.deliver(args[0])
-      return original.apply(this, args as [unknown])
+    const target = panel as unknown as Record<string, unknown>
+    const hooks: Hook[] = []
+    for (const [name, list] of Object.entries(LIST_METHODS)) {
+      if (typeof target[name] !== 'function') continue
+      const hadOwn = Object.prototype.hasOwnProperty.call(panel, name)
+      const previous = hadOwn ? target[name] as Method : undefined
+      const reader = this
+      const wrapper = function (this: unknown, ...args: unknown[]) {
+        if (!reader.disposed && reader.observed?.panel === panel) { const paths = list(args); if (paths !== undefined) reader.deliver(paths) }
+        // Without an own method, Typora's is looked up per call, so later prototype patches still run.
+        const method = (previous ?? (Object.getPrototypeOf(panel) as Record<string, unknown>)[name]) as Method
+        return method.apply(this, args)
+      }
+      target[name] = wrapper
+      hooks.push({ name, wrapper, hadOwn, previous })
     }
-    panel.setRecentFiles = wrapper
-    this.observed = { panel, wrapper, hadOwn, previous: hadOwn ? original : undefined }
+    this.observed = { panel, hooks }
   }
 
   private deliver(paths: unknown) {
@@ -87,16 +101,19 @@ export class MacRecentReader {
     } catch { /* Quick Open must receive its list whatever happens here. */ }
   }
 
-  /** Puts Quick Open back as it was, unless another script has since wrapped over this hook. */
+  /** Puts Quick Open back as it was, except where another script has since wrapped over a hook. */
   private restore() {
     const observed = this.observed
     this.observed = undefined
     if (!observed) return
-    try {
-      if (observed.panel.setRecentFiles !== observed.wrapper) return
-      if (observed.hadOwn) observed.panel.setRecentFiles = observed.previous!
-      else delete (observed.panel as Partial<QuickOpenPanel>).setRecentFiles
-    } catch { /* A frozen or replaced panel keeps the wrapper, which then only forwards. */ }
+    const target = observed.panel as unknown as Record<string, unknown>
+    for (const hook of observed.hooks) {
+      try {
+        if (target[hook.name] !== hook.wrapper) continue
+        if (hook.hadOwn) target[hook.name] = hook.previous
+        else delete target[hook.name]
+      } catch { /* A frozen panel keeps the wrapper, which then only forwards. */ }
+    }
   }
 
   dispose(): void {

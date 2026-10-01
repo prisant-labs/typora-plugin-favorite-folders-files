@@ -166,9 +166,9 @@ Marketplace tab lists plugins from the online catalog only.
 
 **Why is "Recently opened" greyed out?**
 It follows Typora's Recent list. It is unavailable when that list is
-unavailable, or when some entries in it have no date. On macOS, Typora passes
-its Recent files without dates, so it is always unavailable there. Until then,
-Favorites keeps your Custom order.
+unavailable, or when some entries in it have no date. While it is unavailable,
+Favorites keeps your Custom order. On macOS, Typora passes its Recent files
+without dates, so Recently opened is always unavailable there.
 
 **Why does Recent say "Typora's order" instead of "Most recent first"?**
 Some entries in Typora's Recent list have no date, so Favorites can't be sure

@@ -17,7 +17,7 @@ describe('shared Favorites settings editor', () => {
     expect([...container.querySelectorAll('.qa-settings__section > h3')].map(node => node.textContent)).toEqual(['Display', 'Ordering', 'Recent'])
     expect(container.textContent).toContain('File → Open Recent')
     expect(container.textContent).toContain('never saves')
-    expect(container.textContent).toContain('available in Typora for Windows and macOS')
+    expect(container.textContent).toContain('available in Typora for Windows, and for macOS, where it has not yet been tested')
     expect(container.querySelector('header, footer')).toBeNull()
     dispose()
   })

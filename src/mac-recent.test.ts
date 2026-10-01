@@ -5,27 +5,35 @@ import { parseTyporaRecent } from './native-import'
 afterEach(() => { vi.useRealTimers() })
 
 /** Typora's macOS bridge and Quick Open, as its page code wires them (synthetic paths only). */
-function typora(options: { files?: unknown; folders?: unknown; push?: 'sync' | 'async' | 'never'; answerFolders?: boolean } = {}) {
+function typora(options: { files?: unknown; folders?: unknown; push?: 'sync' | 'async' | 'never'; via?: 'setRecentFiles' | 'initFileCache'; answerFolders?: boolean } = {}) {
   const received: Array<{ self: unknown; paths: unknown }> = []
-  class TyporaQuickOpenPanel { setRecentFiles(paths: unknown) { received.push({ self: this, paths }); return 'typora-result' } }
+  const indexed: unknown[][] = []
+  class TyporaQuickOpenPanel {
+    setRecentFiles(paths: unknown) { received.push({ self: this, paths }); return 'typora-result' }
+    // initFileCache(e,n,i,t,r): indexes the folder, and replaces the Recent files list when `r` is given.
+    initFileCache(...args: unknown[]) { indexed.push(args); return 'typora-index' }
+  }
   const services = { panel: new TyporaQuickOpenPanel() as QuickOpenPanel | undefined, bridge: undefined as MacBridge | undefined }
   // registerBridge: bridge.registerHandler("quickOpen.setRecentFiles", (e, t) => { n.setRecentFiles(e), t && t() })
   const handler = (paths: unknown) => services.panel!.setRecentFiles(paths)
+  // registerBridge: bridge.registerHandler("quickOpen.initFileCache", (e, t) => { n.initFileCache.apply(n, e || []), t && t() })
+  const indexHandler = (...args: unknown[]) => services.panel!.initFileCache!(...args)
+  const push = (paths: unknown) => options.via === 'initFileCache' ? indexHandler(['/Fixture/Indexed.md'], ['Indexed.md'], [1], 1, paths) : handler(paths)
   const files = 'files' in options ? options.files : ['/Fixture/Recent.md']
   const folders = 'folders' in options ? options.folders : [{ name: 'Notes', path: '/Fixture/Notes', pinned: false }]
   const callHandler = vi.fn((name: string, data?: unknown) => {
     if (name === 'library.getRecentFolders' && options.answerFolders !== false) queueMicrotask(() => (data as (rows: unknown) => void)(folders))
     if (name === 'quickOpen.cacheRecentFiles') {
-      if (options.push === 'sync') handler(files)
-      else if (options.push !== 'never') setTimeout(() => handler(files), 0)
+      if (options.push === 'sync') push(files)
+      else if (options.push !== 'never') setTimeout(() => push(files), 0)
     }
   })
   services.bridge = { callHandler }
   const reader = new MacRecentReader({ bridge: () => services.bridge, quickOpen: () => services.panel }, { timeoutMilliseconds: 500 })
-  return { reader, services, handler, received, callHandler, TyporaQuickOpenPanel }
+  return { reader, services, handler, indexHandler, received, indexed, callHandler, TyporaQuickOpenPanel }
 }
 
-const own = (panel: unknown) => Object.prototype.hasOwnProperty.call(panel, 'setRecentFiles')
+const own = (panel: unknown, name = 'setRecentFiles') => Object.prototype.hasOwnProperty.call(panel, name)
 
 describe('Typora Recent reader for macOS', () => {
   it('asks for folders and files with the calls Typora\'s own macOS code makes', async () => {
@@ -53,7 +61,7 @@ describe('Typora Recent reader for macOS', () => {
   it('does not touch Quick Open before the first read', () => {
     const t = typora()
     expect(t.reader.available()).toBe(true)
-    expect(own(t.services.panel)).toBe(false)
+    expect(own(t.services.panel)).toBe(false); expect(own(t.services.panel, 'initFileCache')).toBe(false)
     expect(t.callHandler).not.toHaveBeenCalled()
   })
   it('keeps no list between reads: each read waits for a fresh one', async () => {
@@ -103,7 +111,7 @@ describe('Typora Recent reader for macOS', () => {
     const read = t.reader.read(); expect(own(t.services.panel)).toBe(true)
     t.reader.dispose()
     await expect(read).rejects.toThrow('disposed')
-    expect(own(t.services.panel)).toBe(false)
+    expect(own(t.services.panel)).toBe(false); expect(own(t.services.panel, 'initFileCache')).toBe(false)
     t.handler(['/Fixture/After.md']); expect(t.received.at(-1)!.paths).toEqual(['/Fixture/After.md'])
     expect(t.reader.available()).toBe(false)
     await expect(t.reader.read()).rejects.toThrow('disposed')
@@ -144,6 +152,46 @@ describe('Typora Recent reader for macOS', () => {
     await expect(t.reader.read()).resolves.toMatchObject({ files: [{ path: '/Fixture/Recent.md' }] })
     expect(own(first)).toBe(false); expect(own(t.services.panel)).toBe(true)
     t.reader.dispose(); expect(own(t.services.panel)).toBe(false)
+  })
+  it('reads the list when Typora sends it through Quick Open\'s initFileCache', async () => {
+    const t = typora({ via: 'initFileCache' })
+    await expect(t.reader.read()).resolves.toMatchObject({ files: [{ path: '/Fixture/Recent.md' }] })
+    expect(t.indexed.at(-1)).toEqual([['/Fixture/Indexed.md'], ['Indexed.md'], [1], 1, ['/Fixture/Recent.md']])
+    expect(own(t.services.panel, 'initFileCache')).toBe(true)
+    t.reader.dispose(); expect(own(t.services.panel, 'initFileCache')).toBe(false)
+  })
+  it('ignores folder indexing that carries no Recent files list', async () => {
+    vi.useFakeTimers()
+    const t = typora({ push: 'never' })
+    const read = t.reader.read(); const result = expect(read).rejects.toThrow('timeout')
+    expect(t.indexHandler(['/Fixture/Indexed.md'], ['Indexed.md'], [1], 1)).toBe('typora-index')
+    await vi.advanceTimersByTimeAsync(500); await result
+  })
+  it('rejects when only the files request throws', async () => {
+    const t = typora()
+    t.callHandler.mockImplementation((name: string) => { if (name === 'quickOpen.cacheRecentFiles') throw new Error('/private/path') })
+    await expect(t.reader.read()).rejects.toThrow('bridge')
+  })
+  it('keeps observing through a later wrapper, and leaves no hook of its own after unload', async () => {
+    const t = typora()
+    await t.reader.read()
+    const ours = t.services.panel!.setRecentFiles
+    t.services.panel!.setRecentFiles = function (this: unknown, paths: unknown) { return ours.call(this, paths) }
+    await expect(t.reader.read()).resolves.toMatchObject({ files: [{ path: '/Fixture/Recent.md' }] })
+    // The other script unwinds by putting back what it found.
+    t.services.panel!.setRecentFiles = ours
+    await t.reader.read()
+    t.reader.dispose()
+    expect(own(t.services.panel)).toBe(false)
+  })
+  it('runs a later patch to Typora\'s Quick Open method while Favorites is loaded', async () => {
+    const t = typora()
+    await t.reader.read()
+    const calls: string[] = []
+    const typoraMethod = t.TyporaQuickOpenPanel.prototype.setRecentFiles
+    t.TyporaQuickOpenPanel.prototype.setRecentFiles = function (this: unknown, paths: unknown) { calls.push('patched'); return typoraMethod.call(this, paths) }
+    expect(t.handler(['/Fixture/Later.md'])).toBe('typora-result')
+    expect(calls).toEqual(['patched']); expect(t.received.at(-1)!.paths).toEqual(['/Fixture/Later.md'])
   })
   it('reports availability only when both macOS channels exist', async () => {
     const t = typora()

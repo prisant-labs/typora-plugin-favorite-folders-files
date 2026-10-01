@@ -73,6 +73,15 @@ describe('Typora Recent on macOS', () => {
     ])
     expect(result.entries.every(row => row.openedAt === undefined)).toBe(true)
   })
+  it('keeps Typora\'s macOS order even when every surviving row has a date', () => {
+    // Quick Open's files never carry dates, so a dated-looking macOS list is only ever partial.
+    const result = parseTyporaRecent({
+      files: [{ path: '/Fixture/image.png' }],
+      folders: [{ path: '/Fixture/Older', date: 2 }, { path: '/Fixture/Newer', date: 5 }],
+    }, 'darwin')
+    expect(result.order).toBe('per-kind')
+    expect(result.entries.map(row => row.path)).toEqual(['/Fixture/Older', '/Fixture/Newer'])
+  })
   it('rejects URLs, relative paths and non-string rows from macOS without disclosing them', () => {
     for (const raw of [
       { files: [{ path: 'file:///private/A.md' }], folders: [] }, { files: [{ path: 'private/A.md' }], folders: [] },

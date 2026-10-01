@@ -11,17 +11,17 @@ All notable changes to Favorites for Typora are recorded here. Versions follow
   Typora's sidebar folder menu, and Typora's Recent Markdown files, from the
   list Typora sends to Quick Open. As on Windows, it is read only while the
   panel is visible, kept in memory, and never saved. Typora passes its macOS
-  Recent files without dates, so each tab keeps Typora's order and **Recently
-  opened** sorting is unavailable on macOS.
+  Recent files without dates, so on macOS each tab keeps Typora's order and
+  **Recently opened** sorting is unavailable.
 - Both macOS channels were found in Typora's page code. Neither has been
-  tested in Typora on macOS yet, and this is not in a release until it has.
+  tested in Typora on macOS yet.
 
 ### Changed
 
 - When Recent is unavailable, the panel now says "Typora's Recent list isn't
   available in this version of Typora." instead of naming Windows.
 - The settings page's Recent section now says Recent is available in Typora for
-  Windows and macOS.
+  Windows, and for macOS, where it has not yet been tested.
 
 ## 0.1.2 (2026-09-30)
 

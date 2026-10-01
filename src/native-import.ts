@@ -39,7 +39,8 @@ export function parseTyporaRecent(raw: unknown, platform: Platform): NativeHisto
       }
     }
   } catch { return invalid }
-  const ordered = rows.every(row => row.date !== undefined)
+  // macOS files never carry dates (Quick Open receives bare paths), so macOS keeps Typora's order per kind.
+  const ordered = platform === 'win32' && rows.every(row => row.date !== undefined)
   if (ordered) rows.sort((first, second) => second.date! - first.date!)
   // Native dates are sort keys only: no fabricated wall-clock ages or native pins.
   return normalizeHistory({ status: 'ready', order: ordered ? 'global' : 'per-kind', entries: rows.map(({ kind, path }) => ({ kind, path })) }, platform)

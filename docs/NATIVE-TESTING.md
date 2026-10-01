@@ -100,8 +100,9 @@ with the same triggers and limits. Folders come from
 `bridge.callHandler('library.getRecentFolders')`, the call Typora's own sidebar
 folder menu makes. Files come from the list Typora's macOS app sends to Quick
 Open after `bridge.callHandler('quickOpen.cacheRecentFiles')`. Favorites sees
-that list through a pass-through wrapper on `File.editor.quickOpenPanel`'s
-`setRecentFiles`. The wrapper is installed on the first read and removed when
+that list through pass-through wrappers on `File.editor.quickOpenPanel`'s
+`setRecentFiles` and `initFileCache`, the two Quick Open methods that replace
+the whole list. The wrappers are installed on the first read and removed when
 Favorites unloads. Both channels were found in Typora's page code. Neither has
 been observed on a Mac yet, so run the probe below before trusting a macOS result.
 
@@ -140,41 +141,75 @@ and automated tests do not establish those results. Do not add a history collect
 
 ### macOS Recent
 
-First confirm the two channels with this probe. It prints counts, value kinds,
-key names, date types and timings, but no paths or names. Disable Favorites
+First confirm the channels with this probe. It prints counts, value kinds, key
+names, date types and timings, but no paths or names. It watches the three Quick
+Open methods that can carry Recent files: `setRecentFiles` and `initFileCache`
+replace the whole list, and `updateCache` edits one entry. Disable Favorites
 first, so that its own reads do not overlap the probe. Then open Typora's
 DevTools (turn on Typora's debugging option, right-click, and choose **Inspect
 Element**) and paste:
 
 ```js
-(() => { const qo = File.editor.quickOpenPanel, had = Object.prototype.hasOwnProperty.call(qo, 'setRecentFiles'), prior = qo.setRecentFiles, t0 = Date.now(); const shape = v => Array.isArray(v) ? { count: v.length, kinds: [...new Set(v.map(x => typeof x === 'string' ? (x.startsWith('/') ? 'absolute path' : x.startsWith('file:') ? 'file URL' : 'other text') : Object.keys(x || {}).sort().join(' ')))] } : typeof v; const probe = function (paths) { console.log('files', Date.now() - t0, 'ms', JSON.stringify(shape(paths))); return prior.apply(this, arguments) }; qo.setRecentFiles = probe; bridge.callHandler('quickOpen.cacheRecentFiles'); bridge.callHandler('library.getRecentFolders', rows => console.log('folders', Date.now() - t0, 'ms', JSON.stringify(shape(rows)), JSON.stringify((Array.isArray(rows) ? rows : []).slice(0, 5).map(r => ({ date: Object.prototype.toString.call(r && r.date), pinned: Boolean(r && r.pinned) }))))); setTimeout(() => { if (qo.setRecentFiles === probe) { if (had) qo.setRecentFiles = prior; else delete qo.setRecentFiles; console.log('restored') } else console.log('not restored: something else wrapped setRecentFiles; reload the window') }, 5000) })()
+(() => {
+  const qo = File.editor.quickOpenPanel, t0 = Date.now()
+  if (qo.favoritesProbe) return console.log('probe already running: wait for "restored", then run it again')
+  const kind = x => typeof x === 'string' ? (x.startsWith('/') ? 'absolute path' : x.startsWith('file:') ? 'file URL' : 'other text') : x && typeof x === 'object' ? Object.keys(x).sort().join(' ') : typeof x
+  const shape = v => Array.isArray(v) ? { count: v.length, kinds: [...new Set(v.map(kind))] } : kind(v)
+  const report = {
+    setRecentFiles: a => shape(a[0]),
+    initFileCache: a => ({ recentFiles: a[4] ? shape(a[4]) : 'none' }),
+    updateCache: a => ({ removed: kind(a[0]), added: kind(a[1]), group: a[2] }),
+  }
+  const hooks = Object.keys(report).filter(name => typeof qo[name] === 'function').map(name => ({ name, had: Object.prototype.hasOwnProperty.call(qo, name), prior: qo[name] }))
+  for (const hook of hooks) {
+    hook.probe = function (...args) { console.log(hook.name, Date.now() - t0, 'ms', JSON.stringify(report[hook.name](args))); return hook.prior.apply(this, args) }
+    qo[hook.name] = hook.probe
+  }
+  qo.favoritesProbe = true
+  bridge.callHandler('quickOpen.cacheRecentFiles')
+  bridge.callHandler('library.getRecentFolders', rows => console.log('folders', Date.now() - t0, 'ms', JSON.stringify(shape(rows)), JSON.stringify((Array.isArray(rows) ? rows : []).slice(0, 5).map(r => ({ date: Object.prototype.toString.call(r && r.date), pinned: Boolean(r && r.pinned) })))))
+  setTimeout(() => {
+    const kept = hooks.filter(hook => qo[hook.name] !== hook.probe)
+    for (const hook of hooks) if (qo[hook.name] === hook.probe) { if (hook.had) qo[hook.name] = hook.prior; else delete qo[hook.name] }
+    delete qo.favoritesProbe
+    console.log(kept.length ? 'not fully restored: reload the window' : 'restored')
+  }, 5000)
+})()
 ```
 
-Run it twice, and wait for `restored` after the first run before starting the
-second. Record each `files` and `folders` line. The probe answers four questions:
+Run it twice. Wait for `restored` after the first run before starting the
+second; an early second run refuses to start. Record every line. The probe
+answers four questions:
 
-- **Does the files list arrive on every request?** The second run must log a
-  `files` line too. If it doesn't, macOS Recent would work once and then fail
-  on every later read, so it must not be released.
+- **Does a full files list arrive on every request?** Each run must log either a
+  `setRecentFiles` line or an `initFileCache` line whose `recentFiles` is not
+  `none`. The second run is the one that matters. If it logs neither, macOS
+  Recent would work once and then fail on every later read, so it must not be
+  released. A run that logs only `updateCache` lines also fails this check.
 - **Are the paths absolute?** `kinds` should read `absolute path` for files, and
   `date name path pinned` (or similar) for folder rows. A `file URL` makes
   Favorites show an error instead of a list.
-- **Do any rows carry dates?** Without dates, Recent shows **Typora's order**
-  and **Recently opened** sorting stays unavailable.
+- **Do any rows carry dates?** Favorites keeps Typora's order on macOS either
+  way, so **Recently opened** sorting stays unavailable there. Record the date
+  types anyway; they decide whether macOS could ever offer that sort.
 - **How fast does each channel answer?** Favorites waits 5 seconds for both.
 
 Then re-enable Favorites and check, using disposable native history:
 
-- Recent → **Files** and **Folders** match Typora's own lists, filtered to
-  Markdown files and in the same order. Compare files with Quick Open
-  (Cmd+Shift+O) and folders with the sidebar's folder menu. Pinned folders are
-  not moved to the top.
+- Recent → **Files** matches Quick Open's recent files (Cmd+Shift+O with an empty
+  query), filtered to Markdown files and in the same order.
+- Recent → **Folders** contains the folders in the sidebar's folder menu. The
+  menu is not an exact reference: it shows at most six folders, puts pinned
+  folders first, and lists the open folder separately. Favorites keeps the
+  order Typora returns and does not move pinned folders.
 - Quick Open still lists recent files while Favorites is enabled, and after
   Favorites is disabled.
 - Open a file from outside Recent. While the panel is visible, Recent shows it
   within a few seconds. Hide the panel: no reads should occur.
 - Clear Typora's list (**File → Open Recent**, then the clear command at the
-  bottom of that menu). Recent must empty on the next read.
+  bottom of that menu). Record what happens to **Files** and to **Folders** on
+  the next read. Typora's code does not show whether that command clears the
+  folders list too.
 - Disable and re-enable Favorites, then restart Typora. No late read may
   publish after unload.
 - Click a Recent folder to switch this window to it. On macOS, Cmd+click opens
