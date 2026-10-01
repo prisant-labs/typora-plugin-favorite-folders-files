@@ -26,13 +26,15 @@ alongside them.
 
 ![Manage groups: organizing groups and adding a new one](docs/images/manage-groups.png)
 
-**Recent** (Windows)
+**Recent** (Windows; macOS is new and not yet tested)
 
 - Shows Typora's own Recent list (**File → Open Recent**) in **Files** and
   **Folders** tabs, with no import step. It stays current as you open files and
   folders, and it's the same in every Typora window.
 - Favorites only reads the list while the panel is visible. It never saves,
   sends or changes it.
+- On macOS, Recent is in the development source but not yet in a release. It
+  has not been tested in Typora on macOS.
 
 ![The Recent tab listing recent Markdown files](docs/images/recent.png)
 
@@ -105,7 +107,9 @@ to Community Plugin "vaults", and an FAQ.
   re-tested on macOS. The underlying sidebar behavior affects every plugin
   panel and is reported to Typora Community Plugin as
   [typora-community-plugin#102](https://github.com/typora-community-plugin/typora-community-plugin/issues/102).
-  Recent isn't available on macOS yet.
+  Recent on macOS is in the development source but not yet in a release. It
+  reads two macOS channels found in Typora's page code, and nobody has tested
+  it in Typora on macOS yet.
 - **Recently opened** sorting needs a date on every entry in Typora's Recent
   list. When some entries have none, it stays unavailable and each Recent tab
   keeps Typora's own order.

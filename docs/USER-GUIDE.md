@@ -27,7 +27,7 @@ Favorites is a plugin for [Typora Community Plugin](https://github.com/typora-co
 
 - Typora 1.4.0 or newer
 - Typora Community Plugin 2.10.21 or newer
-- Windows or macOS (the Recent list is Windows-only for now)
+- Windows or macOS (Recent on macOS is new and not yet tested; see [Recent](#recent))
 
 **From the marketplace:** open Typora's settings, go to **Plugin
 Marketplace**, search for **Favorites**, and install it. Then go to
@@ -88,7 +88,11 @@ Recent**, split into **Files** and **Folders**.
 - The label next to **Views** says **Most recent first** when every entry has a
   date. If Typora left some entries without a date, it says **Typora's order**
   and each list keeps Typora's own order.
-- Recent is available in Typora for Windows only for now.
+- Recent works in Typora for Windows. Recent on macOS is in the development
+  source, not yet in a release, and has not been tested in Typora on macOS.
+- On macOS, Typora passes its Recent files to Favorites without dates, so
+  Recent says **Typora's order** there and **Recently opened** sorting is
+  unavailable.
 
 ## Opening files and folders
 
@@ -162,17 +166,19 @@ Marketplace tab lists plugins from the online catalog only.
 
 **Why is "Recently opened" greyed out?**
 It follows Typora's Recent list. It is unavailable when that list is
-unavailable (for example, on macOS), or when some entries in it have no date.
-Until then, Favorites keeps your Custom order.
+unavailable, or when some entries in it have no date. On macOS, Typora passes
+its Recent files without dates, so it is always unavailable there. Until then,
+Favorites keeps your Custom order.
 
 **Why does Recent say "Typora's order" instead of "Most recent first"?**
 Some entries in Typora's Recent list have no date, so Favorites can't be sure
 of the order across all of them. Each list keeps the order Typora gave it.
 
 **Why is Recent empty?**
-Typora's own list may be empty (check **File → Open Recent**), or you may be on
-macOS, where Recent isn't available yet. Recent lists only Markdown files, so
-other file types don't appear under **Files**.
+Typora's own list may be empty (check **File → Open Recent**). Recent lists
+only Markdown files, so other file types don't appear under **Files**. On
+macOS, Favorites 0.1.2 and earlier show a message there instead, because they
+read Recent on Windows only.
 
 **Does Favorites change my Typora history?**
 No. It only reads Typora's Recent list while the panel is visible. Typora

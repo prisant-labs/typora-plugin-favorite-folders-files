@@ -3,6 +3,7 @@ import { FavoritesController } from './controller'
 import { FavoritesRuntime } from './favorites-runtime'
 import { FavoritesPanelRenderer } from './favorites-panel'
 import { NativeHost, type NativeServices } from './host'
+import { MacRecentReader, type MacBridge, type QuickOpenPanel } from './mac-recent'
 import { FavoritesIndexedDbStore } from './storage'
 import { favoritesRibbonIcon } from './panel'
 import { openSettings, QuickAccessSettingTab } from './settings'
@@ -27,8 +28,12 @@ export default class QuickAccessPlugin extends Plugin {
     })
     const collection = new FavoritesController(new FavoritesIndexedDbStore(app.platform), app.platform)
     const container = document.createElement('div'); container.classList.add('qa-sidebar-panel')
+    // Typora's macOS app has no Recent getter: folders come from its folder menu's call, files via Quick Open.
+    const typora = globalThis as unknown as { bridge?: MacBridge; File?: { editor?: { quickOpenPanel?: QuickOpenPanel } } }
+    const macRecent = app.platform === 'darwin' ? new MacRecentReader({ bridge: () => typora.bridge, quickOpen: () => typora.File?.editor?.quickOpenPanel }) : undefined
     const runtime = new FavoritesRuntime(host, collection, {
-      readHistory: app.platform === 'win32' ? async () => bridge().invoke('setting.getRecentFiles') : undefined,
+      readHistory: app.platform === 'win32' ? async () => bridge().invoke('setting.getRecentFiles') : macRecent && (() => macRecent.read()),
+      historyAvailable: macRecent && (() => macRecent.available()),
       isVisible: () => container.isConnected && container.getClientRects().length > 0,
     })
     let disposed = false
@@ -60,7 +65,7 @@ export default class QuickAccessPlugin extends Plugin {
     this.registerCommand({ id: 'settings', title: 'Settings', scope: 'global', callback: () => { settings() } })
     const cleanup = () => {
       if (disposed) return
-      disposed = true; tab.dispose(); unsubscribe(); runtime.dispose()
+      disposed = true; tab.dispose(); unsubscribe(); runtime.dispose(); macRecent?.dispose()
       renderer.dispose(); panel.hide(); panel.containerEl.remove(); removePanel()
     }
     this.cleanup = cleanup; this.register(cleanup)

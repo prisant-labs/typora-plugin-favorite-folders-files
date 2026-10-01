@@ -91,9 +91,19 @@ On Windows, Recent is a live view of Typora's native read-only Recent getter.
 It is read only while the Favorites panel is visible: on show, on window focus
 and after navigation events, throttled and coalesced. The storage poll never
 reads it. An unchanged list is not republished. The list exists only in memory; nothing is
-saved, and the settings page and its preview never show it. On macOS Recent is
-unsupported. Clicking the folder already open does nothing; Ctrl+click opens a
-new window through `app.openFileOrFolder` with `forceCreateWindow`.
+saved, and the settings page and its preview never show it. Clicking the folder
+already open does nothing; on Windows, Ctrl+click opens a new window through
+`app.openFileOrFolder` with `forceCreateWindow`.
+
+On macOS, Typora has no Recent getter, so Favorites reads two other channels
+with the same triggers and limits. Folders come from
+`bridge.callHandler('library.getRecentFolders')`, the call Typora's own sidebar
+folder menu makes. Files come from the list Typora's macOS app sends to Quick
+Open after `bridge.callHandler('quickOpen.cacheRecentFiles')`. Favorites sees
+that list through a pass-through wrapper on `File.editor.quickOpenPanel`'s
+`setRecentFiles`. The wrapper is installed on the first read and removed when
+Favorites unloads. Both channels were found in Typora's page code. Neither has
+been observed on a Mac yet, so run the probe below before trusting a macOS result.
 
 Dates are accepted in the forms Typora's own Recent menu sorts (numbers, numeric
 strings and Date objects). To inspect the payload shape without printing paths,
@@ -127,6 +137,48 @@ Using disposable native history, check:
 The observed Windows consumer contract supports the implementation, but real
 bridge, clear/privacy and native visual acceptance remain unrun. Preview fixtures
 and automated tests do not establish those results. Do not add a history collector.
+
+### macOS Recent
+
+First confirm the two channels with this probe. It prints counts, value kinds,
+key names, date types and timings, but no paths or names. Disable Favorites
+first, so that its own reads do not overlap the probe. Then open Typora's
+DevTools (turn on Typora's debugging option, right-click, and choose **Inspect
+Element**) and paste:
+
+```js
+(() => { const qo = File.editor.quickOpenPanel, had = Object.prototype.hasOwnProperty.call(qo, 'setRecentFiles'), prior = qo.setRecentFiles, t0 = Date.now(); const shape = v => Array.isArray(v) ? { count: v.length, kinds: [...new Set(v.map(x => typeof x === 'string' ? (x.startsWith('/') ? 'absolute path' : x.startsWith('file:') ? 'file URL' : 'other text') : Object.keys(x || {}).sort().join(' ')))] } : typeof v; const probe = function (paths) { console.log('files', Date.now() - t0, 'ms', JSON.stringify(shape(paths))); return prior.apply(this, arguments) }; qo.setRecentFiles = probe; bridge.callHandler('quickOpen.cacheRecentFiles'); bridge.callHandler('library.getRecentFolders', rows => console.log('folders', Date.now() - t0, 'ms', JSON.stringify(shape(rows)), JSON.stringify((Array.isArray(rows) ? rows : []).slice(0, 5).map(r => ({ date: Object.prototype.toString.call(r && r.date), pinned: Boolean(r && r.pinned) }))))); setTimeout(() => { if (qo.setRecentFiles === probe) { if (had) qo.setRecentFiles = prior; else delete qo.setRecentFiles; console.log('restored') } else console.log('not restored: something else wrapped setRecentFiles; reload the window') }, 5000) })()
+```
+
+Run it twice, and wait for `restored` after the first run before starting the
+second. Record each `files` and `folders` line. The probe answers four questions:
+
+- **Does the files list arrive on every request?** The second run must log a
+  `files` line too. If it doesn't, macOS Recent would work once and then fail
+  on every later read, so it must not be released.
+- **Are the paths absolute?** `kinds` should read `absolute path` for files, and
+  `date name path pinned` (or similar) for folder rows. A `file URL` makes
+  Favorites show an error instead of a list.
+- **Do any rows carry dates?** Without dates, Recent shows **Typora's order**
+  and **Recently opened** sorting stays unavailable.
+- **How fast does each channel answer?** Favorites waits 5 seconds for both.
+
+Then re-enable Favorites and check, using disposable native history:
+
+- Recent → **Files** and **Folders** match Typora's own lists, filtered to
+  Markdown files and in the same order. Compare files with Quick Open
+  (Cmd+Shift+O) and folders with the sidebar's folder menu. Pinned folders are
+  not moved to the top.
+- Quick Open still lists recent files while Favorites is enabled, and after
+  Favorites is disabled.
+- Open a file from outside Recent. While the panel is visible, Recent shows it
+  within a few seconds. Hide the panel: no reads should occur.
+- Clear Typora's list (**File → Open Recent**, then the clear command at the
+  bottom of that menu). Recent must empty on the next read.
+- Disable and re-enable Favorites, then restart Typora. No late read may
+  publish after unload.
+- Click a Recent folder to switch this window to it. On macOS, Cmd+click opens
+  it in this window too, because Favorites opens new windows only on Windows.
 
 ## Migration and recovery
 

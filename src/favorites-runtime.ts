@@ -28,6 +28,8 @@ export class FavoritesRuntime {
   constructor(private readonly host: Host, readonly collection: FavoritesController, private readonly options: {
     pollMilliseconds?: number
     readHistory?: () => Promise<unknown>
+    /** Checked on every read: Typora's macOS channels may appear after the plugin loads. */
+    historyAvailable?: () => boolean
     historyTimeoutMilliseconds?: number
     /** Minimum gap between background reads of Typora's Recent list. */
     historyMinIntervalMilliseconds?: number
@@ -37,7 +39,10 @@ export class FavoritesRuntime {
     this.history = normalizeHistory(undefined, host.platform)
   }
 
-  private get historyAvailable() { return this.host.platform === 'win32' && Boolean(this.options.readHistory) && !this.disposed }
+  private get historyAvailable() {
+    if (this.disposed || !this.options.readHistory || !['win32', 'darwin'].includes(this.host.platform)) return false
+    try { return this.options.historyAvailable?.() ?? true } catch { return false }
+  }
 
   get snapshot(): FavoritesPanelSnapshot {
     return {

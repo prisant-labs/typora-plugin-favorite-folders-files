@@ -301,7 +301,7 @@ export class FavoritesPanelRenderer {
     lists.append(filters)
     if (history.status !== 'ready') {
       const source = this.snapshot!.historySource
-      const message = source && !source.available ? 'Recent shows Typora\'s own Recent list, currently available in Typora for Windows only.'
+      const message = source && !source.available ? 'Typora\'s Recent list isn\'t available in this version of Typora.'
         : source?.error || (source?.loading ? 'Reading Typora\'s Recent list…' : history.message || 'Typora\'s Recent list is unavailable.')
       const note = el('p', 'qa-empty', message); if (source?.error) note.setAttribute('role', 'alert'); lists.append(note); return
     }

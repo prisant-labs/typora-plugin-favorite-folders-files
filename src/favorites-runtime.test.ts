@@ -7,7 +7,7 @@ import { replayFavoritesDraft, type FavoritesDraft } from './editor-state'
 
 afterEach(() => { vi.useRealTimers() })
 
-function fixture(options: { readHistory?: () => Promise<unknown>; historyTimeoutMilliseconds?: number; historyMinIntervalMilliseconds?: number; isVisible?: () => boolean } = {}) {
+function fixture(options: { readHistory?: () => Promise<unknown>; historyAvailable?: () => boolean; historyTimeoutMilliseconds?: number; historyMinIntervalMilliseconds?: number; isVisible?: () => boolean } = {}) {
   let saved = createFavoritesState()
   let changed = () => {}
   const current = { file: 'C:\\Fixture\\note.md', folder: 'C:\\Fixture' }
@@ -109,9 +109,33 @@ describe('Favorites native runtime', () => {
   it('never reads on a platform whose Recent reader has not been established', async () => {
     const readHistory = vi.fn(async () => ({ files: [], folders: [] }))
     const f = fixture({ readHistory })
-    const mac = new FavoritesRuntime({ ...f.host, platform: 'darwin' }, new FavoritesController(f.store, 'darwin'), { pollMilliseconds: 0, readHistory })
+    const linux = new FavoritesRuntime({ ...f.host, platform: 'linux' }, new FavoritesController(f.store, 'linux'), { pollMilliseconds: 0, readHistory })
+    await linux.start(); await linux.syncHistory(true)
+    expect(readHistory).not.toHaveBeenCalled(); expect(linux.snapshot.historySource?.available).toBe(false)
+    linux.dispose(); f.runtime.dispose()
+  })
+  it('reads Typora Recent on macOS while the macOS channels are available', async () => {
+    const readHistory = vi.fn(async () => ({ files: [{ path: '/Fixture/Recent.md' }], folders: [{ path: '/Fixture/Notes' }] }))
+    const f = fixture({ readHistory })
+    const mac = new FavoritesRuntime({ ...f.host, platform: 'darwin' }, new FavoritesController(f.store, 'darwin'), { pollMilliseconds: 0, readHistory, historyAvailable: () => true })
+    // Start reads once; an immediate background sync joins or is throttled rather than reading again.
+    await mac.start(); await mac.syncHistory()
+    expect(readHistory).toHaveBeenCalledOnce()
+    expect(mac.snapshot.history).toMatchObject({ status: 'ready', order: 'per-kind' })
+    expect(mac.snapshot.history.entries.map(row => row.path)).toEqual(['/Fixture/Recent.md', '/Fixture/Notes'])
+    expect(mac.snapshot.historySource).toEqual({ available: true, loading: false, error: undefined })
+    mac.dispose(); f.runtime.dispose()
+  })
+  it('checks availability on every read, so channels that appear later are used on the next show', async () => {
+    let ready = false
+    const readHistory = vi.fn(async () => ({ files: [], folders: [] }))
+    const f = fixture({ readHistory })
+    const mac = new FavoritesRuntime({ ...f.host, platform: 'darwin' }, new FavoritesController(f.store, 'darwin'), { pollMilliseconds: 0, readHistory, historyAvailable: () => ready })
     await mac.start(); await mac.syncHistory(true)
     expect(readHistory).not.toHaveBeenCalled(); expect(mac.snapshot.historySource?.available).toBe(false)
+    ready = true
+    expect(mac.snapshot.historySource?.available).toBe(true)
+    await mac.syncHistory(true); expect(readHistory).toHaveBeenCalledOnce()
     mac.dispose(); f.runtime.dispose()
   })
   it('observes actual normalized current paths without collecting visits or inventing native history', async () => {
