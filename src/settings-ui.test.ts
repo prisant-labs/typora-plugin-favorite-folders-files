@@ -18,6 +18,8 @@ describe('shared Favorites settings editor', () => {
     expect(container.textContent).toContain('File → Open Recent')
     expect(container.textContent).toContain('never saves')
     expect(container.textContent).toContain('available in Typora for Windows, and for macOS, where it has not yet been tested')
+    // macOS never supplies dates, so the unavailable text must not promise that the sort will arrive.
+    expect(container.querySelector('[data-recent-capability]')?.textContent).toBe('Recently opened ordering needs a date on every entry in Typora\'s Recent list. While it is unavailable, Favorites keeps your Custom order.')
     expect(container.querySelector('header, footer')).toBeNull()
     dispose()
   })
