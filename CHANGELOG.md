@@ -87,7 +87,7 @@ First public release.
 - A settings page aligned with Outline View, with a live preview that uses
   sample data only.
 - A [user guide](docs/USER-GUIDE.md) with an FAQ, a
-  [native test checklist](docs/NATIVE-TESTING.md), and a self-contained HTML
+  [native test checklist](test/native/README.md), and a self-contained HTML
   preview that CI keeps in sync with the source.
 
 ### Notes

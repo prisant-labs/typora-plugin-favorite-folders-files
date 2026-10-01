@@ -100,7 +100,7 @@ to Community Plugin "vaults", and an FAQ.
 
 - **Windows:** the maintainer has installed and exercised Favorites there,
   including installing it from the Plugin Marketplace. The full
-  [native test checklist](docs/NATIVE-TESTING.md) is still in progress.
+  [native test checklist](test/native/README.md) is still in progress.
 - **macOS:** a supported target. The first run on macOS (0.1.1) found the
   panel squeezed to one side of the sidebar, with Typora's own "Outline"
   header row showing above it. 0.1.2 fixes both, but it has not yet been
@@ -146,7 +146,7 @@ visual review matters. Record user-visible changes in the
 
 The release archive contains only `LICENSE.md`, `THIRD-PARTY-NOTICES.md`,
 `main.js`, `manifest.json` and `style.css`. See
-[installation and native checks](docs/NATIVE-TESTING.md).
+[installation and native checks](test/native/README.md).
 
 ## License
 
