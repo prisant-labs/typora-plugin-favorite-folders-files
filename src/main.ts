@@ -4,6 +4,8 @@ import { FavoritesRuntime } from './favorites-runtime'
 import { FavoritesPanelRenderer } from './favorites-panel'
 import { NativeHost, type NativeServices } from './host'
 import { MacRecentReader, type MacBridge, type QuickOpenPanel } from './mac-recent'
+import { diagnoseRecent } from './recent-diagnostics'
+import { openRecentDiagnostics } from './recent-diagnostics-ui'
 import { FavoritesIndexedDbStore } from './storage'
 import { favoritesRibbonIcon } from './panel'
 import { openSettings, QuickAccessSettingTab } from './settings'
@@ -31,9 +33,10 @@ export default class QuickAccessPlugin extends Plugin {
     // Typora's macOS app has no Recent getter: folders come from its folder menu's call, files via Quick Open.
     const typora = globalThis as unknown as { bridge?: MacBridge; File?: { editor?: { quickOpenPanel?: QuickOpenPanel } } }
     const macRecent = app.platform === 'darwin' ? new MacRecentReader({ bridge: () => typora.bridge, quickOpen: () => typora.File?.editor?.quickOpenPanel }) : undefined
+    const readHistory = app.platform === 'win32' ? async () => bridge().invoke('setting.getRecentFiles') : macRecent && (() => macRecent.read())
+    const historyAvailable = macRecent && (() => macRecent.available())
     const runtime = new FavoritesRuntime(host, collection, {
-      readHistory: app.platform === 'win32' ? async () => bridge().invoke('setting.getRecentFiles') : macRecent && (() => macRecent.read()),
-      historyAvailable: macRecent && (() => macRecent.available()),
+      readHistory, historyAvailable,
       isVisible: () => container.isConnected && container.getClientRects().length > 0,
     })
     let disposed = false
@@ -63,9 +66,19 @@ export default class QuickAccessPlugin extends Plugin {
     }); this.registerSettingTab(tab)
     this.registerCommand({ id: 'toggle', title: 'Toggle panel', scope: 'global', callback: () => { if (!disposed) app.workspace.sidebar.switch(QuickAccessSidebarPanel) } })
     this.registerCommand({ id: 'settings', title: 'Settings', scope: 'global', callback: () => { settings() } })
+    // Reads through the panel's own reader, on request, so a tester needs no DevTools.
+    let diagnostics: { close(): void } | undefined
+    this.registerCommand({ id: 'recent-diagnostics', title: 'Copy Recent diagnostics', scope: 'global', callback: () => {
+      if (disposed) return
+      diagnostics?.close()
+      diagnostics = openRecentDiagnostics(() => diagnoseRecent({
+        platform: app.platform, version: this.manifest.version, read: readHistory, available: historyAvailable,
+        typora: typora.File as Record<string, unknown> | undefined,
+      }))
+    } })
     const cleanup = () => {
       if (disposed) return
-      disposed = true; tab.dispose(); unsubscribe(); runtime.dispose(); macRecent?.dispose()
+      disposed = true; diagnostics?.close(); tab.dispose(); unsubscribe(); runtime.dispose(); macRecent?.dispose()
       renderer.dispose(); panel.hide(); panel.containerEl.remove(); removePanel()
     }
     this.cleanup = cleanup; this.register(cleanup)

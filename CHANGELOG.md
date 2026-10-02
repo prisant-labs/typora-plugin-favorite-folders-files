@@ -3,19 +3,24 @@
 All notable changes to Favorites for Typora are recorded here. Versions follow
 [semantic versioning](https://semver.org/).
 
-## Unreleased
+## 0.1.3 (2026-10-01)
 
 ### Added
 
 - **Recent** on macOS. It shows Typora's Recent folders, from the same call as
   Typora's sidebar folder menu, and Typora's Recent Markdown files, from the
   list Typora sends to Quick Open. As on Windows, it is read only while the
-  panel is visible, kept in memory, and never saved. Typora passes its macOS
+  panel is visible (or when you run the diagnostics command below), kept in
+  memory, and never saved. Typora passes its macOS
   Recent files without dates, so on macOS each tab keeps Typora's order and
   **Recently opened** sorting is unavailable.
 - Both macOS channels were found in Typora's page code and confirmed on a Mac
   by the Recent probe in `test/native/probes/`. Favorites' macOS Recent itself
   has not yet been tested in Typora on macOS.
+- A **Favorites: Copy Recent diagnostics** command. It reads Typora's Recent
+  list through Favorites' own reader, twice on macOS, and shows a report you
+  can copy into a bug report. The report lists counts, kinds and timings, never
+  paths or names.
 
 ### Changed
 
@@ -23,6 +28,10 @@ All notable changes to Favorites for Typora are recorded here. Versions follow
   available in this version of Typora." instead of naming Windows.
 - The settings page's Recent section now says Recent is available in Typora for
   Windows, and for macOS, where it has not yet been tested.
+- The native test checklist moved from `docs/NATIVE-TESTING.md` to
+  [`test/native/README.md`](test/native/README.md), beside the native test
+  fixtures. A one-paste Recent probe for Typora's DevTools,
+  `test/native/probes/recent.js`, replaces the inline snippets.
 
 ## 0.1.2 (2026-09-30)
 

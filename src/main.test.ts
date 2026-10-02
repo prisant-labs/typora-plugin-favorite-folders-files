@@ -47,7 +47,7 @@ describe('plugin lifecycle', () => {
     expect(panel.containerEl.querySelector('h2')?.textContent).toBe('Favorites')
     expect(app.workspace.on).toHaveBeenCalledWith('file:open', expect.any(Function))
     const commands = (plugin as unknown as { commands: { title: string; callback(): void }[] }).commands
-    expect(commands.map(command => command.title)).toEqual(['Favorites: Toggle panel', 'Favorites: Settings'])
+    expect(commands.map(command => command.title)).toEqual(['Favorites: Toggle panel', 'Favorites: Settings', 'Favorites: Copy Recent diagnostics'])
     expect(invoke).toHaveBeenCalledExactlyOnceWith('setting.getRecentFiles')
     panel.containerEl.querySelector<HTMLButtonElement>('[data-key="tab-recent"]')!.click()
     await vi.advanceTimersByTimeAsync(0)
@@ -118,9 +118,21 @@ describe('plugin lifecycle', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(panel.containerEl.textContent).toContain('Notes')
     expect(received).toEqual([['/Synthetic/Recent.md']])
+    // The diagnostics command reads twice through the same reader and shows a path-free report.
+    const commands = (plugin as unknown as { commands: { title: string; callback(): void }[] }).commands
+    commands.find(command => command.title === 'Favorites: Copy Recent diagnostics')!.callback()
+    const modal = document.querySelector<HTMLElement>('.typ-modal__wrapper')!
+    expect(modal.textContent).toContain('Reading Typora\'s Recent list')
+    await vi.advanceTimersByTimeAsync(100)
+    const report = modal.querySelector('textarea')!.value
+    expect(report).toContain('Read 2: answered after'); expect(report).toContain('RESULT: PASS')
+    expect(report).not.toContain('Synthetic')
+    expect([...modal.querySelectorAll('button')].map(button => button.textContent)).toEqual(['Copy report', 'Close'])
+    expect(received).toHaveLength(3)
     plugin.onunload()
+    expect(modal.style.display).toBe('none')
     expect(Object.prototype.hasOwnProperty.call(quickOpenPanel, 'setRecentFiles')).toBe(false)
-    quickOpenPanel.setRecentFiles(['/Synthetic/Later.md']); expect(received).toHaveLength(2)
+    quickOpenPanel.setRecentFiles(['/Synthetic/Later.md']); expect(received).toHaveLength(4)
     expect(vi.getTimerCount()).toBe(0)
   })
 })

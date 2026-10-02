@@ -88,7 +88,8 @@ Keep real paths, screenshots and native history in local-only receipts.
 ## Native Recent capability gate
 
 On Windows, Recent is a live view of Typora's native read-only Recent getter.
-It is read only while the Favorites panel is visible: on show, on window focus
+It is read only while the Favorites panel is visible, or when **Favorites: Copy
+Recent diagnostics** runs: on show, on window focus
 and after navigation events, throttled and coalesced. The storage poll never
 reads it. An unchanged list is not republished. The list exists only in memory; nothing is
 saved, and the settings page and its preview never show it. Clicking the folder
@@ -108,6 +109,19 @@ Favorites unloads. Both channels were found in Typora's page code. On
 [macOS Recent](#macos-recent)). Favorites' own macOS Recent has not yet been
 tested in Typora on macOS.
 
+### Copy Recent diagnostics
+
+With a Favorites build installed, run **Favorites: Copy Recent diagnostics**
+from the command palette. It needs no DevTools. It reads Recent through
+Favorites' own reader, twice on macOS, and shows a report with a **Copy
+report** button. The report shows each read's timing, the shapes of the
+files and folders lists, and what the panel would show. It ends with
+`RESULT: PASS` or `RESULT: FAIL`, and it holds no paths or names. Use it for
+every native Recent check, and ask users to attach it to Recent bug reports.
+
+The probe below checks Typora's channels without any Favorites build, which
+helps when a new Typora version changes them.
+
 ### Recent probe
 
 [`probes/recent.js`](probes/recent.js) checks Typora's Recent channels on
@@ -118,8 +132,15 @@ request pending.
 
 1. Hide the Favorites panel by switching the sidebar to Files. Favorites then
    does not read Recent while the probe runs.
-2. Open Typora's DevTools: turn on Typora's debugging option, right-click, and
-   choose **Inspect Element**.
+2. Open Typora's DevTools, as described in Typora's
+   [Debug Themes](https://support.typora.io/Debug-Themes/) page:
+   - **macOS 13.3 or later, Typora 1.9 or later:** turn on Safari's developer
+     features (Safari's Web Inspector setting), then in Safari choose
+     **Develop → [this Mac's name] → Typora**. The inspector opens in Safari.
+   - **Older macOS:** turn on debug mode in Typora's preferences under
+     **General**, restart Typora, right-click the writing area, and choose
+     **Inspect Element**.
+   - **Windows:** **View → Toggle DevTools**.
 3. Open [`probes/recent.js`](probes/recent.js) on GitHub, use **Copy raw file**,
    paste it into the DevTools console, and press Enter.
 4. Wait for the report window. It takes up to 10 seconds on macOS, which asks

@@ -27,7 +27,7 @@ Favorites is a plugin for [Typora Community Plugin](https://github.com/typora-co
 
 - Typora 1.4.0 or newer
 - Typora Community Plugin 2.10.21 or newer
-- Windows or macOS (Recent on macOS is new and not yet tested; see [Recent](#recent))
+- Windows or macOS (Recent on macOS is new in 0.1.3 and not yet tested there; see [Recent](#recent))
 
 **From the marketplace:** open Typora's settings, go to **Plugin
 Marketplace**, search for **Favorites**, and install it. Then go to
@@ -80,7 +80,8 @@ Recent shows **Typora's own Recent list**, the same one as **File → Open
 Recent**, split into **Files** and **Folders**.
 
 - Favorites reads the list while the Favorites panel is visible, and again when
-  you open a file or folder, or switch back to the Typora window.
+  you open a file or folder, or switch back to the Typora window. It also reads
+  it when you run **Favorites: Copy Recent diagnostics**.
 - It is the same in every Typora window, and it survives restarts, because
   Typora keeps it.
 - Favorites never saves the list, sends it anywhere, or changes it. To clear
@@ -88,8 +89,8 @@ Recent**, split into **Files** and **Folders**.
 - The label next to **Views** says **Most recent first** when every entry has a
   date. If Typora left some entries without a date, it says **Typora's order**
   and each list keeps Typora's own order.
-- Recent works in Typora for Windows. Recent on macOS is in the development
-  source, not yet in a release, and has not been tested in Typora on macOS.
+- Recent works in Typora for Windows. Recent on macOS is new in 0.1.3 and has
+  not yet been tested in Typora on macOS.
 - On macOS, Typora passes its Recent files to Favorites without dates, so
   Recent says **Typora's order** there and **Recently opened** sorting is
   unavailable.
@@ -180,8 +181,17 @@ only Markdown files, so other file types don't appear under **Files**. On
 macOS, Favorites 0.1.2 and earlier show a message there instead, because they
 read Recent on Windows only.
 
+**Recent shows an error or the wrong files. How do I report it?**
+Run **Favorites: Copy Recent diagnostics** from the command palette. It reads
+Typora's Recent list the way the panel does (twice on macOS), then shows a
+report with a **Copy report** button. The report lists counts, kinds and
+timings, never paths or names, so you can paste it into an
+[issue](https://github.com/prisant-labs/typora-plugin-favorite-folders-files/issues)
+as it is.
+
 **Does Favorites change my Typora history?**
-No. It only reads Typora's Recent list while the panel is visible. Typora
+No. It only reads Typora's Recent list while the panel is visible, or when you
+run **Favorites: Copy Recent diagnostics**. Typora
 itself decides what goes into that list, including files and folders you open
 from Favorites.
 
