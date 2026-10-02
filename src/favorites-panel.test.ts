@@ -71,7 +71,8 @@ describe('Favorites production panel', () => {
     const state = applyFavoritesOperation(f.state, { type: 'favorites:preferences', patch: { activeTab: 'recent', recentFilter: 'all' } }, 'darwin')
     f.renderer.update({ state, current: f.current, platform: 'darwin', writable: true, history: normalizeHistory(undefined, 'darwin'), historySource: { available: false, loading: false } })
     expect(f.button('Files').getAttribute('aria-pressed')).toBe('true')
-    expect(f.container.textContent).toContain('available in Typora for Windows only')
+    expect(f.container.textContent).toContain('Typora\'s Recent list isn\'t available in this version of Typora.')
+    expect(f.container.textContent).not.toContain('Windows only')
   })
   it('calls only a dated list most recent first and explains an unavailable Recently opened sort', () => {
     const f = fixture()

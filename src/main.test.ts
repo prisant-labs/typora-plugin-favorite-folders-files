@@ -47,7 +47,7 @@ describe('plugin lifecycle', () => {
     expect(panel.containerEl.querySelector('h2')?.textContent).toBe('Favorites')
     expect(app.workspace.on).toHaveBeenCalledWith('file:open', expect.any(Function))
     const commands = (plugin as unknown as { commands: { title: string; callback(): void }[] }).commands
-    expect(commands.map(command => command.title)).toEqual(['Favorites: Toggle panel', 'Favorites: Settings'])
+    expect(commands.map(command => command.title)).toEqual(['Favorites: Toggle panel', 'Favorites: Settings', 'Favorites: Copy Recent diagnostics'])
     expect(invoke).toHaveBeenCalledExactlyOnceWith('setting.getRecentFiles')
     panel.containerEl.querySelector<HTMLButtonElement>('[data-key="tab-recent"]')!.click()
     await vi.advanceTimersByTimeAsync(0)
@@ -75,5 +75,64 @@ describe('plugin lifecycle', () => {
     panel.show(); expect(document.querySelector('.quick-access')).toBeNull()
     expect(sidebarEl.classList.contains('qa-favorites-open')).toBe(false)
     commands[1].callback(); expect(app.commands.run).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads Typora\'s macOS Recent channels on macOS and gives Quick Open back on unload', async () => {
+    vi.useFakeTimers()
+    const unsubscribe = vi.fn()
+    const app = {
+      platform: 'darwin', openFile: vi.fn(),
+      commands: { run: vi.fn() },
+      vault: { path: '/Synthetic', on: vi.fn(() => unsubscribe) },
+      workspace: {
+        activeFile: '/Synthetic/note.md', activeEditor: { openFile: vi.fn() }, on: vi.fn(() => unsubscribe), ribbon: {},
+        sidebar: { addPanel: vi.fn((_panel: unknown) => vi.fn()), switch: vi.fn(), container: { addPanel: (panel: { containerEl: HTMLElement }) => document.body.append(panel.containerEl), removePanel: (panel: { containerEl: HTMLElement }) => panel.containerEl.remove() } },
+      },
+    }
+    const invoke = vi.fn(); vi.stubGlobal('JSBridge', { invoke })
+    // Typora's macOS Quick Open receives the Recent files list from the macOS app (synthetic paths).
+    const received: unknown[] = []
+    class TyporaQuickOpenPanel { setRecentFiles(paths: unknown) { received.push(paths) } }
+    const quickOpenPanel = new TyporaQuickOpenPanel()
+    const callHandler = vi.fn((name: string, data?: unknown) => {
+      if (name === 'library.getRecentFolders') queueMicrotask(() => (data as (rows: unknown) => void)([{ name: 'Notes', path: '/Synthetic/Notes', pinned: false }]))
+      if (name === 'quickOpen.cacheRecentFiles') setTimeout(() => quickOpenPanel.setRecentFiles(['/Synthetic/Recent.md']), 0)
+    })
+    vi.stubGlobal('bridge', { callHandler })
+    vi.stubGlobal('File', { editor: { quickOpenPanel } })
+    const plugin = new QuickAccessPlugin(app as never, { id: 'prisant-labs.favorite-folders-files', name: 'Favorites' } as never)
+    plugin.onload(); await vi.advanceTimersByTimeAsync(0)
+    const panel = app.workspace.sidebar.addPanel.mock.calls[0]?.[0] as { containerEl: HTMLElement; show(): void }
+    expect(callHandler).not.toHaveBeenCalled()
+    expect(Object.prototype.hasOwnProperty.call(quickOpenPanel, 'setRecentFiles')).toBe(false)
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{}] as unknown as DOMRectList)
+    panel.show(); await vi.advanceTimersByTimeAsync(0)
+    expect(callHandler).toHaveBeenCalledWith('library.getRecentFolders', expect.any(Function))
+    expect(callHandler).toHaveBeenCalledWith('quickOpen.cacheRecentFiles')
+    expect(invoke).not.toHaveBeenCalled()
+    panel.containerEl.querySelector<HTMLButtonElement>('[data-key="tab-recent"]')!.click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(panel.containerEl.textContent).toContain('Recent.md')
+    expect(panel.containerEl.querySelector('[data-recent-order]')?.textContent).toBe('Typora\'s order')
+    panel.containerEl.querySelector<HTMLButtonElement>('[data-key="recent-folder"]')!.click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(panel.containerEl.textContent).toContain('Notes')
+    expect(received).toEqual([['/Synthetic/Recent.md']])
+    // The diagnostics command reads twice through the same reader and shows a path-free report.
+    const commands = (plugin as unknown as { commands: { title: string; callback(): void }[] }).commands
+    commands.find(command => command.title === 'Favorites: Copy Recent diagnostics')!.callback()
+    const modal = document.querySelector<HTMLElement>('.typ-modal__wrapper')!
+    expect(modal.textContent).toContain('Reading Typora\'s Recent list')
+    await vi.advanceTimersByTimeAsync(100)
+    const report = modal.querySelector('textarea')!.value
+    expect(report).toContain('Read 2: answered after'); expect(report).toContain('RESULT: PASS')
+    expect(report).not.toContain('Synthetic')
+    expect([...modal.querySelectorAll('button')].map(button => button.textContent)).toEqual(['Copy report', 'Close'])
+    expect(received).toHaveLength(3)
+    plugin.onunload()
+    expect(modal.style.display).toBe('none')
+    expect(Object.prototype.hasOwnProperty.call(quickOpenPanel, 'setRecentFiles')).toBe(false)
+    quickOpenPanel.setRecentFiles(['/Synthetic/Later.md']); expect(received).toHaveLength(4)
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

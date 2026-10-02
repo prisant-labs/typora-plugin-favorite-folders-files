@@ -56,6 +56,40 @@ describe('manual Typora Recent snapshot', () => {
     }
   })
   it('does not claim support for a platform whose reader has not been established', () => {
-    expect(parseTyporaRecent({ files: [], folders: [] }, 'darwin').status).toBe('unavailable')
+    expect(parseTyporaRecent({ files: [], folders: [] }, 'linux').status).toBe('unavailable')
+  })
+})
+
+describe('Typora Recent on macOS', () => {
+  // The macOS reader shapes Quick Open's path strings and the folder menu's rows like the Windows getter.
+  it('keeps Typora\'s order per kind for undated macOS rows, with the same filtering and deduplication', () => {
+    const result = parseTyporaRecent({
+      files: [{ path: '/Fixture/B.md' }, { path: '/Fixture/image.png' }, { path: '/Fixture/A.md' }, { path: '/Fixture/./B.md' }],
+      folders: [{ name: 'Pinned', path: '/Fixture/Pinned', pinned: true }, { name: 'Notes', path: '/Fixture/Notes', pinned: false }],
+    }, 'darwin')
+    expect(result).toMatchObject({ status: 'ready', order: 'per-kind' })
+    expect(result.entries.map(row => [row.kind, row.path])).toEqual([
+      ['file', '/Fixture/B.md'], ['file', '/Fixture/A.md'], ['folder', '/Fixture/Pinned'], ['folder', '/Fixture/Notes'],
+    ])
+    expect(result.entries.every(row => row.openedAt === undefined)).toBe(true)
+  })
+  it('keeps Typora\'s macOS order even when every surviving row has a date', () => {
+    // Quick Open's files never carry dates, so a dated-looking macOS list is only ever partial.
+    const result = parseTyporaRecent({
+      files: [{ path: '/Fixture/image.png' }],
+      folders: [{ path: '/Fixture/Older', date: 2 }, { path: '/Fixture/Newer', date: 5 }],
+    }, 'darwin')
+    expect(result.order).toBe('per-kind')
+    expect(result.entries.map(row => row.path)).toEqual(['/Fixture/Older', '/Fixture/Newer'])
+  })
+  it('rejects URLs, relative paths and non-string rows from macOS without disclosing them', () => {
+    for (const raw of [
+      { files: [{ path: 'file:///private/A.md' }], folders: [] }, { files: [{ path: 'private/A.md' }], folders: [] },
+      { files: [{ path: 7 }], folders: [] }, { files: 'private', folders: [] }, { files: [], folders: [{ path: 'private' }] },
+    ]) {
+      const result = parseTyporaRecent(raw, 'darwin')
+      expect(result.status).toBe('error'); expect(result.entries).toEqual([])
+      expect(result.message).not.toContain('private')
+    }
   })
 })

@@ -88,20 +88,71 @@ Keep real paths, screenshots and native history in local-only receipts.
 ## Native Recent capability gate
 
 On Windows, Recent is a live view of Typora's native read-only Recent getter.
-It is read only while the Favorites panel is visible: on show, on window focus
+It is read only while the Favorites panel is visible, or when **Favorites: Copy
+Recent diagnostics** runs: on show, on window focus
 and after navigation events, throttled and coalesced. The storage poll never
 reads it. An unchanged list is not republished. The list exists only in memory; nothing is
-saved, and the settings page and its preview never show it. On macOS Recent is
-unsupported. Clicking the folder already open does nothing; Ctrl+click opens a
-new window through `app.openFileOrFolder` with `forceCreateWindow`.
+saved, and the settings page and its preview never show it. Clicking the folder
+already open does nothing; on Windows, Ctrl+click opens a new window through
+`app.openFileOrFolder` with `forceCreateWindow`.
 
-Dates are accepted in the forms Typora's own Recent menu sorts (numbers, numeric
-strings and Date objects). To inspect the payload shape without printing paths,
-run this in Typora's DevTools console and record only the table:
+On macOS, Typora has no Recent getter, so Favorites reads two other channels
+with the same triggers and limits. Folders come from
+`bridge.callHandler('library.getRecentFolders')`, the call Typora's own sidebar
+folder menu makes. Files come from the list Typora's macOS app sends to Quick
+Open after `bridge.callHandler('quickOpen.cacheRecentFiles')`. Favorites sees
+that list through pass-through wrappers on `File.editor.quickOpenPanel`'s
+`setRecentFiles` and `initFileCache`, the two Quick Open methods that replace
+the whole list. The wrappers are installed on the first read and removed when
+Favorites unloads. Both channels were found in Typora's page code. On
+2026-10-01, the Recent probe confirmed both on the maintainer's Mac (see
+[macOS Recent](#macos-recent)). Favorites' own macOS Recent has not yet been
+tested in Typora on macOS.
 
-```js
-Promise.resolve(JSBridge.invoke('setting.getRecentFiles')).then(r => console.table(['files', 'folders'].flatMap(k => (r?.[k] ?? []).map((row, i) => ({ list: k, i, keys: Object.keys(row).sort().join(' '), date: Object.prototype.toString.call(row.date), sortable: Number.isFinite(Number(row.date)) })))))
-```
+### Copy Recent diagnostics
+
+With a Favorites build installed, run **Favorites: Copy Recent diagnostics**
+from the command palette. It needs no DevTools. It reads Recent through
+Favorites' own reader, twice on macOS, and shows a report with a **Copy
+report** button. The report shows each read's timing, the shapes of the
+files and folders lists, and what the panel would show. It ends with
+`RESULT: PASS` or `RESULT: FAIL`, and it holds no paths or names. Use it for
+every native Recent check, and ask users to attach it to Recent bug reports.
+
+The probe below checks Typora's channels without any Favorites build, which
+helps when a new Typora version changes them.
+
+### Recent probe
+
+[`probes/recent.js`](probes/recent.js) checks Typora's Recent channels on
+Windows or macOS and reports what it finds. The report holds counts, kinds, key
+names, date types and timings, but never paths or names. A channel that does not
+answer within 5 seconds is reported as "no answer", so the probe never leaves a
+request pending.
+
+1. Hide the Favorites panel by switching the sidebar to Files. Favorites then
+   does not read Recent while the probe runs.
+2. Open Typora's DevTools, as described in Typora's
+   [Debug Themes](https://support.typora.io/Debug-Themes/) page:
+   - **macOS 13.3 or later, Typora 1.9 or later:** turn on Safari's developer
+     features (Safari's Web Inspector setting), then in Safari choose
+     **Develop → [this Mac's name] → Typora**. The inspector opens in Safari.
+   - **Older macOS:** turn on debug mode in Typora's preferences under
+     **General**, restart Typora, right-click the writing area, and choose
+     **Inspect Element**.
+   - **Windows:** **View → Toggle DevTools**.
+3. Open [`probes/recent.js`](probes/recent.js) on GitHub, use **Copy raw file**,
+   paste it into the DevTools console, and press Enter.
+4. Wait for the report window. It takes up to 10 seconds on macOS, which asks
+   twice, and under a second on Windows. **Copy report** copies the whole
+   report. The console also prints it as plain text.
+5. Record the report. Its last lines read `RESULT: PASS`, or `RESULT: FAIL`
+   followed by the reasons.
+
+On Windows, the report shows the shapes of the getter's `files` and `folders`
+lists and their date types. Typora's own Recent menu sorts by those dates, and
+Favorites accepts the same forms: numbers, numeric strings, Date objects, and
+full ISO 8601 text.
 
 Using disposable native history, check:
 
@@ -127,6 +178,72 @@ Using disposable native history, check:
 The observed Windows consumer contract supports the implementation, but real
 bridge, clear/privacy and native visual acceptance remain unrun. Preview fixtures
 and automated tests do not establish those results. Do not add a history collector.
+
+### macOS Recent
+
+Run the [Recent probe](#recent-probe) first. On macOS it asks for both lists
+twice, because the second request shows whether Typora sends the files list
+again. It watches the three Quick Open methods that can carry Recent files:
+`setRecentFiles` and `initFileCache` replace the whole list, and `updateCache`
+edits one entry. Read the report this way:
+
+- **`RESULT: PASS`** means both passes received a full files list of absolute
+  paths, and the folders call answered both times. Continue with the checks
+  below.
+- **"Pass 2 returned no full Recent files list"** means Typora sends the list
+  only once. macOS Recent would work once and then fail on every later read, so
+  it must not be released.
+- **"not absolute paths (file URL)"** means Favorites would show an error
+  instead of a list.
+- **"Already wrapped before the probe"** names Quick Open methods that something
+  had wrapped before the probe ran. `initFileCache` is normal: Community Plugin
+  Core wraps it for its ignored-files setting, and Favorites forwards to Core's
+  wrapper. Any other name means another plugin, or a Favorites build with macOS
+  Recent whose panel was showing. Hide that panel or disable that plugin, then
+  run the probe again.
+- **Date types** other than `none` on folder rows change nothing in Favorites,
+  which keeps Typora's order on macOS. Record them anyway; they decide whether
+  macOS could ever offer **Recently opened** sorting.
+- **Timings** show how fast each channel answers. Favorites waits 5 seconds for
+  both.
+
+First observation on a Mac, 2026-10-01: `JSBridge.invoke` exists on macOS, and
+`JSBridge.invoke('setting.getRecentFiles')` returned a promise that was still
+pending while the maintainer watched. That matches Typora's page code, where
+only the Electron build answers that call.
+
+Probe result on the maintainer's Mac, 2026-10-01: **`RESULT: PASS`**.
+
+- Both passes received `setRecentFiles` with 10 Recent files, all absolute
+  paths, after 159 ms and 31 ms. Typora sends the list again on every request.
+- `library.getRecentFolders` answered both times, within 12 ms. It returned 103
+  folder rows shaped `{name path pinned}`, with no dates and absolute paths.
+  The two pinned folders came first.
+- `initFileCache` was already wrapped, by Core.
+
+On that Mac, Recent → **Folders** will therefore list 103 folders, with Typora's
+pinned folders first, and **Files** will list up to 10.
+
+Then show the Favorites panel again and check, using disposable native history:
+
+- Recent → **Files** matches Quick Open's recent files (Cmd+Shift+O with an empty
+  query), filtered to Markdown files and in the same order.
+- Recent → **Folders** contains the folders in the sidebar's folder menu. The
+  menu is not an exact reference: it shows at most six folders and lists the
+  open folder separately. Favorites keeps the order Typora returns, which puts
+  pinned folders first.
+- Quick Open still lists recent files while Favorites is enabled, and after
+  Favorites is disabled.
+- Open a file from outside Recent. While the panel is visible, Recent shows it
+  within a few seconds. Hide the panel: no reads should occur.
+- Clear Typora's list (**File → Open Recent**, then the clear command at the
+  bottom of that menu). Record what happens to **Files** and to **Folders** on
+  the next read. Typora's code does not show whether that command clears the
+  folders list too.
+- Disable and re-enable Favorites, then restart Typora. No late read may
+  publish after unload.
+- Click a Recent folder to switch this window to it. On macOS, Cmd+click opens
+  it in this window too, because Favorites opens new windows only on Windows.
 
 ## Migration and recovery
 

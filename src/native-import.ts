@@ -16,9 +16,12 @@ function sortKey(value: unknown): number | undefined {
   return Number.isFinite(key) && key >= 0 ? key : undefined
 }
 
-/** Windows' own Recent consumer sorts both lists by date. Its epoch is unknown. */
+/**
+ * Windows' own Recent consumer sorts both lists by date. Its epoch is unknown.
+ * The macOS reader supplies the same `{ files, folders }` shape, usually without dates.
+ */
 export function parseTyporaRecent(raw: unknown, platform: Platform): NativeHistorySnapshot {
-  if (platform !== 'win32') return normalizeHistory(undefined, platform)
+  if (platform !== 'win32' && platform !== 'darwin') return normalizeHistory(undefined, platform)
   const invalid: NativeHistorySnapshot = { status: 'error', order: 'global', entries: [], message: 'Could not read Typora Recent: an unsupported response was returned.' }
   if (!raw || typeof raw !== 'object') return invalid
   const lists = raw as Record<string, unknown>
@@ -36,7 +39,8 @@ export function parseTyporaRecent(raw: unknown, platform: Platform): NativeHisto
       }
     }
   } catch { return invalid }
-  const ordered = rows.every(row => row.date !== undefined)
+  // macOS files never carry dates (Quick Open receives bare paths), so macOS keeps Typora's order per kind.
+  const ordered = platform === 'win32' && rows.every(row => row.date !== undefined)
   if (ordered) rows.sort((first, second) => second.date! - first.date!)
   // Native dates are sort keys only: no fabricated wall-clock ages or native pins.
   return normalizeHistory({ status: 'ready', order: ordered ? 'global' : 'per-kind', entries: rows.map(({ kind, path }) => ({ kind, path })) }, platform)

@@ -26,13 +26,16 @@ alongside them.
 
 ![Manage groups: organizing groups and adding a new one](docs/images/manage-groups.png)
 
-**Recent** (Windows)
+**Recent** (Windows; macOS is new and not yet tested)
 
 - Shows Typora's own Recent list (**File → Open Recent**) in **Files** and
   **Folders** tabs, with no import step. It stays current as you open files and
   folders, and it's the same in every Typora window.
-- Favorites only reads the list while the panel is visible. It never saves,
-  sends or changes it.
+- Favorites only reads the list while the panel is visible, or when you run
+  **Favorites: Copy Recent diagnostics**. It never saves, sends or changes it.
+- On macOS, Recent is new in 0.1.3 and has not yet been tested in Typora on
+  macOS. If it misbehaves, run **Favorites: Copy Recent diagnostics** and
+  attach the report to an issue.
 
 ![The Recent tab listing recent Markdown files](docs/images/recent.png)
 
@@ -91,21 +94,24 @@ to Community Plugin "vaults", and an FAQ.
   (an IndexedDB database named `prisant-labs.favorite-folders-files`), and are
   shared by every Typora window.
 - Favorites makes no network requests and collects no telemetry.
-- Recent is read from Typora while the panel is visible, kept in memory, and
-  never written anywhere.
+- Recent is read from Typora while the panel is visible, or when you run the
+  diagnostics command. It is kept in memory and never written anywhere. The
+  diagnostics report holds no paths or names.
 
 ## Status and known limits
 
 - **Windows:** the maintainer has installed and exercised Favorites there,
   including installing it from the Plugin Marketplace. The full
-  [native test checklist](docs/NATIVE-TESTING.md) is still in progress.
+  [native test checklist](test/native/README.md) is still in progress.
 - **macOS:** a supported target. The first run on macOS (0.1.1) found the
   panel squeezed to one side of the sidebar, with Typora's own "Outline"
   header row showing above it. 0.1.2 fixes both, but it has not yet been
   re-tested on macOS. The underlying sidebar behavior affects every plugin
   panel and is reported to Typora Community Plugin as
   [typora-community-plugin#102](https://github.com/typora-community-plugin/typora-community-plugin/issues/102).
-  Recent isn't available on macOS yet.
+  Recent on macOS is new in 0.1.3. It reads two macOS channels found in Typora's page code. A probe confirmed both
+  on a Mac, but Favorites' macOS Recent itself has not been tested in Typora on
+  macOS yet.
 - **Recently opened** sorting needs a date on every entry in Typora's Recent
   list. When some entries have none, it stays unavailable and each Recent tab
   keeps Typora's own order.
@@ -142,7 +148,7 @@ visual review matters. Record user-visible changes in the
 
 The release archive contains only `LICENSE.md`, `THIRD-PARTY-NOTICES.md`,
 `main.js`, `manifest.json` and `style.css`. See
-[installation and native checks](docs/NATIVE-TESTING.md).
+[installation and native checks](test/native/README.md).
 
 ## License
 

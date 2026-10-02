@@ -206,3 +206,14 @@
 .qa-favorites.qa-sidebar-panel { position: absolute; top: 0; right: 0; bottom: 0; left: 0; height: auto; }
 // Typora's macOS header row keeps its last tab title ("Outline") while Favorites is open.
 #typora-sidebar.qa-favorites-open .sidebar-osx-tab { display: none; }
+
+// Recent diagnostics report in Core's modal, in Typora's own theme colors.
+.qa-diagnostics {
+  .qa-diagnostics__status { color: var(--text-muted, #68706b); }
+  .qa-diagnostics__report {
+    display: block; width: 100%; min-height: 16em; box-sizing: border-box; padding: 8px; resize: vertical;
+    font: 12px/1.45 var(--monospace, ui-monospace, Menlo, Consolas, monospace);
+    color: var(--text-color, #303734); background: var(--bg-color, #fffefa); border: 1px solid var(--base-border, #dddfd7);
+  }
+  .qa-diagnostics__actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+}
