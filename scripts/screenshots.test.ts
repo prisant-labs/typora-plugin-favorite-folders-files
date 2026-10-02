@@ -14,6 +14,13 @@ describe('README screenshots', () => {
     for (const name of referenced) expect(existsSync(resolve(root, 'docs', 'images', `${name}.png`)), name).toBe(true)
   })
 
+  it('refuses to capture a settings page that overflows its dialog', () => {
+    const settings = screenshots.find(shot => shot.name === 'settings')!
+    expect(settings.viewport?.height).toBeGreaterThan(1100)
+    expect(settings.clip).toContain('scrollHeight > main.clientHeight')
+    expect(settings.clip).toContain('throw new Error')
+  })
+
   it('prefers an explicit browser, then a known installation', () => {
     expect(findBrowser({ env: { SCREENSHOT_BROWSER: 'custom-browser' }, platform: 'win32', exists: () => false })).toBe('custom-browser')
     const edge = findBrowser({ env: {}, platform: 'win32', exists: path => path.includes('Edge') })

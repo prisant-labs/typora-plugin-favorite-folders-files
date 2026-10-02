@@ -20,7 +20,12 @@ export const screenshots = [
   { name: 'recent', setup: `document.querySelector('[data-key="tab-recent"]').click()`, clip: panelClip(460) },
   { name: 'stacked', setup: `document.querySelector('[data-key="view"]').click(); [...document.querySelectorAll('.qa-view-options label')].find(label => label.textContent === 'Stacked').click()`, clip: panelClip(820) },
   { name: 'manage-groups', setup: `document.querySelector('[data-key="manage"]').click()`, clip: panelClip(480) },
-  { name: 'settings', setup: `document.querySelector('[data-key="settings"]').click()`, clip: `(() => { const box = document.querySelector('.typ-setting-tab').getBoundingClientRect(); return { x: box.left, y: box.top, width: box.width, height: box.height } })()` },
+  // Taller window: the settings dialog is 85vh, and the clip must not reach past its scrolling pane.
+  { name: 'settings', viewport: { width: 1400, height: 1300 }, setup: `document.querySelector('[data-key="settings"]').click()`, clip: `(() => {
+    const main = document.querySelector('#settings-dialog .typ-main')
+    if (main.scrollHeight > main.clientHeight + 1) throw new Error('The settings page overflows its dialog; raise the settings screenshot viewport height.')
+    const box = document.querySelector('.typ-setting-tab').getBoundingClientRect(); return { x: box.left, y: box.top, width: box.width, height: box.height }
+  })()` },
 ]
 
 export function findBrowser({ env, platform, exists }) {
@@ -78,8 +83,9 @@ async function main() {
     }
     const settle = () => evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 150))))')
     await send('Page.enable')
-    await send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 1100, deviceScaleFactor: 2, mobile: false })
     for (const shot of screenshots) {
+      const viewport = shot.viewport ?? { width: 1400, height: 1100 }
+      await send('Emulation.setDeviceMetricsOverride', { ...viewport, deviceScaleFactor: 2, mobile: false })
       await send('Page.navigate', { url: pathToFileURL(page).href })
       for (let attempt = 0; attempt < 50 && !(await evaluate(`document.documentElement.dataset.prototypeReady === 'true'`)); attempt++) await sleep(100)
       if (shot.setup) await evaluate(shot.setup)

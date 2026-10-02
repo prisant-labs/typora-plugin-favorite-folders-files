@@ -4,7 +4,10 @@ import { FavoritesPanelRenderer } from '../src/favorites-panel'
 import { favoritesRibbonIcon } from '../src/panel'
 import { normalizeHistory, type HistoryInput } from '../src/native-history'
 import { renderSettings } from '../src/settings-ui'
+import { buildUpdateConfirmation } from '../src/update-confirmation'
 
+const INSTALLED = '0.1.3'
+const REPO = 'prisant-labs/typora-plugin-favorite-folders-files'
 const mount = document.querySelector<HTMLElement>('#panel-mount')!
 const status = document.querySelector<HTMLElement>('#host-status')!
 let state: FavoritesState
@@ -14,6 +17,22 @@ let unavailable = new Set<string>()
 let error = ''
 let disposeSettings = () => {}
 let renderer: FavoritesPanelRenderer
+// Fixture-only: a newer version that Core's Marketplace would offer.
+let update: string | undefined
+let checkForUpdates = true
+function openUpdate() {
+  const dialog = document.querySelector<HTMLDialogElement>('#update-dialog')!, version = update
+  if (!version) return
+  document.querySelector('#update-mount')!.replaceChildren(buildUpdateConfirmation({
+    installed: INSTALLED, version, repo: REPO, isOpen: () => dialog.open, close: () => dialog.close(),
+    confirm() {
+      dialog.close()
+      status.textContent = `Simulated update: in Typora, Community Plugin Core now unloads Favorites, installs ${version}, and reloads it. Saved Favorites are kept.`
+      return new Promise(() => {})
+    },
+  }))
+  dialog.showModal()
+}
 function createRenderer() { return new FavoritesPanelRenderer(mount, {
   change(operation) { state = applyFavoritesOperation(state, operation, 'darwin'); render() },
   async commit(draft) {
@@ -33,9 +52,10 @@ function createRenderer() { return new FavoritesPanelRenderer(mount, {
   },
   reveal(kind, path) { status.textContent = 'Simulated Finder ' + (kind === 'file' ? 'reveal' : 'open') + ': ' + path + '. No navigation recorded.' },
   settings() { document.querySelector<HTMLDialogElement>('#settings-dialog')!.showModal(); syncSettings() },
+  update: openUpdate,
 }) }
 function render() {
-  renderer.update({ state, current, unavailable, error, platform: 'darwin', history: normalizeHistory(nativeFixture, 'darwin'), historySource: { available: true, loading: false }, writable: true })
+  renderer.update({ state, current, unavailable, error, platform: 'darwin', history: normalizeHistory(nativeFixture, 'darwin'), historySource: { available: true, loading: false }, writable: true, update: update ? { version: update } : undefined })
   document.querySelector('#document-path')!.textContent = current.file || 'No document open'
   if (document.querySelector<HTMLDialogElement>('#settings-dialog')!.open) syncSettings()
 }
@@ -69,6 +89,7 @@ function fixture(name: string) {
   if (name === 'unavailable') nativeFixture = { status: 'unavailable', message: 'Native Recent history is not available in this candidate.' }
   if (name === 'recording-off') nativeFixture = { status: 'recording-off' }
   if (name === 'per-kind') nativeFixture = { ...nativeFixture, order: 'per-kind', entries: nativeFixture.entries!.map(({ kind, path }) => ({ kind, path })) }
+  update = name === 'update-available' ? '0.1.5' : undefined
   status.textContent = 'Synthetic data and a simulated live Recent list. The panel, editor workflows, model and CSS are production code. Reading Typora\'s real Recent list is Windows-only and requires native verification.'
   render()
 }
@@ -77,7 +98,11 @@ function syncSettings() {
   const history = normalizeHistory(nativeFixture, 'darwin'), ordered = history.status === 'ready' && history.order !== 'per-kind'
   disposeSettings = renderSettings(document.querySelector<HTMLElement>('#settings-mount')!, state, patch => {
     state = applyFavoritesOperation(state, { type: 'favorites:preferences', patch }, 'darwin'); render()
-  }, { writable: true, version: '0.1.3', author: 'Prisant Labs', repo: 'prisant-labs/typora-plugin-favorite-folders-files', recentAvailable: ordered })
+  }, {
+    writable: true, version: INSTALLED, author: 'Prisant Labs', repo: REPO, recentAvailable: ordered,
+    update: update ? { version: update, open: openUpdate } : undefined,
+    updates: { enabled: checkForUpdates, setEnabled(enabled) { checkForUpdates = enabled; syncSettings() } },
+  })
 }
 document.querySelector('#theme')!.addEventListener('change', event => { document.documentElement.dataset.theme = (event.target as HTMLSelectElement).value })
 document.querySelector('#panel-width')!.addEventListener('change', event => { document.documentElement.style.setProperty('--panel-width', (event.target as HTMLSelectElement).value + 'px') })

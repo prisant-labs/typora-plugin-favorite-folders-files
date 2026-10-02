@@ -60,6 +60,14 @@ alongside them.
 - If a Favorite's file or folder has moved, its row is marked **Unavailable**
   and the shortcut is kept until you remove it.
 
+**Updates**
+
+- When the Plugin Marketplace has a newer Favorites, an **Update** pill with
+  the new version appears in the panel header and on the settings page.
+- Click it to see what the update does, then confirm. Community Plugin Core
+  downloads and reloads Favorites; your saved Favorites are kept.
+- The daily check can be turned off in the settings under **Updates**.
+
 **Settings**
 
 The settings page has the same layout and sorting options as the panel, plus
@@ -93,7 +101,14 @@ to Community Plugin "vaults", and an FAQ.
 - Your Favorites are stored only on this computer, in Typora's local storage
   (an IndexedDB database named `prisant-labs.favorite-folders-files`), and are
   shared by every Typora window.
-- Favorites makes no network requests and collects no telemetry.
+- Favorites collects no telemetry and sends nothing about you or your files.
+  It causes network requests in two cases, both carried out by Community
+  Plugin Core. The update check: at most once a day, when the panel or its
+  settings page opens, Favorites asks Core to check the Plugin Marketplace for
+  a newer version, and Core downloads the Marketplace's public lists from
+  GitHub. Turn this off in Favorites' settings under **Updates**. And an update
+  you confirm: Core downloads the new version, after reloading those lists if
+  its copy is out of date.
 - Recent is read from Typora while the panel is visible, or when you run the
   diagnostics command. It is kept in memory and never written anywhere. The
   diagnostics report holds no paths or names.

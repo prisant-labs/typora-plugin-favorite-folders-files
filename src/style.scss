@@ -71,10 +71,16 @@
   .qa-history-import { padding: 8px 6px; display: flex; flex-wrap: wrap; gap: 6px; }
   .qa-history-import > button { border-color: var(--qa-line); font-size: 11px; }
   .qa-history-note { flex-basis: 100%; margin: 0; font-size: 11px; line-height: 1.5; color: var(--qa-muted); }
-  .qa-heading { padding: 14px 12px; gap: 3px; flex: none; }
+  .qa-heading { padding: 14px 12px; gap: 3px; flex: none; container-type: inline-size; }
   // Title keeps the icon buttons' height so editor pages (no buttons) don't shift the header.
-  .qa-heading h2 { display: flex; gap: 7px; align-items: center; margin-right: auto; min-height: 28px; font-size: 16px; min-width: 0; }
+  .qa-heading h2 { display: flex; gap: 7px; align-items: center; margin-right: auto; min-height: 28px; font-size: 16px; min-width: 0; overflow: hidden; white-space: nowrap; }
   .qa-heading h2 svg { width: 16px; color: var(--qa-accent); }
+  .qa-update-pill { flex: none; display: inline-flex; align-items: center; gap: 3px; height: 22px; margin-right: 3px; padding: 0 8px 0 6px; border-radius: 999px; border-color: var(--qa-accent); color: var(--qa-accent); font-size: 11px; font-weight: 600; line-height: 1; white-space: nowrap; }
+  .qa-update-pill:hover { background: var(--qa-current); }
+  .qa-update-pill svg { width: 13px; height: 13px; stroke-width: 2.2; }
+  // Measured in the prototype: the short pill leaves 17px beside the title at a 280px panel, and "Update" adds 39px.
+  // The label returns from a 320px panel (295px of header content), keeping about 18px clear.
+  @container (max-width: 294px) { .qa-update-pill__label { display: none; } }
   .qa-search { margin: 0 12px 12px; }
   .qa-search input { font-size: 11px; padding: 8px 0; }
   .qa-controls { position: relative; flex: none; border-top: 1px solid var(--qa-line); border-bottom: 1px solid var(--qa-line); }
@@ -216,4 +222,13 @@
     color: var(--text-color, #303734); background: var(--bg-color, #fffefa); border: 1px solid var(--base-border, #dddfd7);
   }
   .qa-diagnostics__actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+}
+
+// Update confirmation, in Core's modal or the prototype's dialog, in Typora's own theme colors.
+.qa-update-confirmation {
+  max-width: 34em; line-height: 1.5;
+  ul { margin: 8px 0; padding-left: 1.4em; }
+  li + li { margin-top: 3px; }
+  .qa-update-confirmation__status { padding-inline-start: 8px; border-inline-start: 2px solid var(--active-file-border-color, currentColor); }
+  .qa-update-confirmation__actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
 }

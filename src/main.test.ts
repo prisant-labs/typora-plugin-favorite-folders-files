@@ -10,6 +10,12 @@ vi.mock('./storage', () => ({ FavoritesIndexedDbStore: class {
   async commitDraft(draft: FavoritesDraft) { return this.state = replayFavoritesDraft(this.state, draft, 'win32') }
   async close() {}
 } }))
+const updates = vi.hoisted(() => ({ record: { checkForUpdates: true } as Record<string, unknown> }))
+vi.mock('./update-store', () => ({ FavoritesUpdateStore: class {
+  async read() { return structuredClone(updates.record) }
+  async update(change: (record: Record<string, unknown>) => Record<string, unknown>) { updates.record = structuredClone(change(structuredClone(updates.record))); return structuredClone(updates.record) }
+  async close() {}
+} }))
 import QuickAccessPlugin from './main'
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); document.body.replaceChildren() })
 
@@ -45,6 +51,8 @@ describe('plugin lifecycle', () => {
     // Hides Typora's macOS header row, which Core leaves showing a stale tab title.
     expect(sidebarEl.classList.contains('qa-favorites-open')).toBe(true)
     expect(panel.containerEl.querySelector('h2')?.textContent).toBe('Favorites')
+    // This Core has no plugin manager: no pill and no error.
+    expect(panel.containerEl.querySelector('[data-key="update"]')).toBeNull()
     expect(app.workspace.on).toHaveBeenCalledWith('file:open', expect.any(Function))
     const commands = (plugin as unknown as { commands: { title: string; callback(): void }[] }).commands
     expect(commands.map(command => command.title)).toEqual(['Favorites: Toggle panel', 'Favorites: Settings', 'Favorites: Copy Recent diagnostics'])
@@ -133,6 +141,107 @@ describe('plugin lifecycle', () => {
     expect(modal.style.display).toBe('none')
     expect(Object.prototype.hasOwnProperty.call(quickOpenPanel, 'setRecentFiles')).toBe(false)
     quickOpenPanel.setRecentFiles(['/Synthetic/Later.md']); expect(received).toHaveLength(4)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('shows Core\'s newer version as a pill and updates through Core after confirmation', async () => {
+    vi.useFakeTimers()
+    updates.record = { checkForUpdates: true }
+    const ID = 'prisant-labs.favorite-folders-files'
+    const info: { id: string; newestVersion?: string } = { id: ID }
+    const marketplace = {
+      pluginList: [] as unknown[],
+      get isLoaded() { return marketplace.pluginList.length > 0 },
+      getPlugin: vi.fn((id: string) => marketplace.pluginList.find(entry => (entry as { id: string }).id === id)),
+      loadCommunityPlugins: vi.fn(async () => { marketplace.pluginList = [info]; info.newestVersion = '0.1.5' }),
+      getPluginNewestVersion: vi.fn(async (entry: { newestVersion?: string }) => entry.newestVersion),
+    }
+    let plugin!: QuickAccessPlugin
+    // Core's update unloads the running plugin before it downloads the new one.
+    const updatePlugin = vi.fn(async (_id: string) => { plugin.onunload() })
+    const app = {
+      platform: 'win32', openFile: vi.fn(), commands: { run: vi.fn() },
+      plugins: { marketplace, updatePlugin },
+      vault: { path: 'C:/Synthetic', on: vi.fn(() => () => {}) },
+      workspace: {
+        activeFile: undefined, activeEditor: { openFile: vi.fn() }, on: vi.fn(() => () => {}), ribbon: {},
+        sidebar: { addPanel: vi.fn((_panel: unknown) => () => {}), switch: vi.fn(), container: { addPanel: (panel: { containerEl: HTMLElement }) => document.body.append(panel.containerEl), removePanel: (panel: { containerEl: HTMLElement }) => panel.containerEl.remove() } },
+      },
+    }
+    vi.stubGlobal('JSBridge', { invoke: vi.fn(async () => ({ files: [], folders: [] })) })
+    plugin = new QuickAccessPlugin(app as never, { id: ID, name: 'Favorites', version: '0.1.3', repo: 'prisant-labs/typora-plugin-favorite-folders-files' } as never)
+    plugin.onload(); await vi.advanceTimersByTimeAsync(0)
+    // Loading the plugin asks Core for nothing; showing the panel does.
+    expect(marketplace.loadCommunityPlugins).not.toHaveBeenCalled()
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{}] as unknown as DOMRectList)
+    const panel = app.workspace.sidebar.addPanel.mock.calls[0]?.[0] as { containerEl: HTMLElement; show(): void }
+    panel.show(); await vi.advanceTimersByTimeAsync(0)
+    expect(marketplace.loadCommunityPlugins).toHaveBeenCalledOnce()
+    const pill = panel.containerEl.querySelector<HTMLButtonElement>('[data-key="update"]')!
+    expect(pill.getAttribute('aria-label')).toBe('Update Favorites to 0.1.5')
+    expect(updates.record).toMatchObject({ checkForUpdates: true, checked: { version: '0.1.5' } })
+
+    const tab = (plugin as unknown as { tabs: Array<{ containerEl: HTMLElement; onshow(): void; onhide(): void }> }).tabs[0]
+    document.body.append(tab.containerEl); tab.onshow(); await vi.advanceTimersByTimeAsync(0)
+    // The settings page reuses this window's check: Core is not asked again.
+    expect(marketplace.loadCommunityPlugins).toHaveBeenCalledOnce()
+    expect(tab.containerEl.querySelector<HTMLInputElement>('input[data-setting-key="checkForUpdates"]')?.checked).toBe(true)
+    const settingsPill = tab.containerEl.querySelector<HTMLButtonElement>('[data-action="update"]')!
+    expect(settingsPill.textContent).toBe('Update to 0.1.5')
+
+    pill.click()
+    const dialogs = () => [...document.querySelectorAll<HTMLElement>('.typ-modal__wrapper')].filter(node => node.style.display !== 'none')
+    expect(dialogs()).toHaveLength(1)
+    expect(dialogs()[0].textContent).toContain('Update Favorites from 0.1.3 to 0.1.5?')
+    const dialogButton = (name: string) => [...dialogs()[0].querySelectorAll('button')].find(node => node.textContent === name)!
+    dialogButton('Cancel').click()
+    expect(dialogs()).toHaveLength(0)
+    expect(updatePlugin).not.toHaveBeenCalled()
+
+    settingsPill.click()
+    dialogButton('Update').click(); await vi.advanceTimersByTimeAsync(0)
+    expect(updatePlugin).toHaveBeenCalledExactlyOnceWith(ID)
+    // Core's unload closed the dialog and removed the panel; nothing reappears.
+    expect(dialogs()).toHaveLength(0)
+    expect(document.querySelector('.quick-access')).toBeNull()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('reports an update that Core did not start, without unloading', async () => {
+    vi.useFakeTimers()
+    updates.record = { checkForUpdates: false }
+    const ID = 'prisant-labs.favorite-folders-files'
+    const marketplace = {
+      pluginList: [{ id: ID, newestVersion: '0.1.5' }] as unknown[],
+      get isLoaded() { return true },
+      getPlugin: vi.fn((id: string) => marketplace.pluginList.find(entry => (entry as { id: string }).id === id)),
+      loadCommunityPlugins: vi.fn(async () => {}), getPluginNewestVersion: vi.fn(async () => '0.1.5'),
+    }
+    const updatePlugin = vi.fn(async () => {})
+    const app = {
+      platform: 'win32', openFile: vi.fn(), commands: { run: vi.fn() }, plugins: { marketplace, updatePlugin },
+      vault: { path: 'C:/Synthetic', on: vi.fn(() => () => {}) },
+      workspace: {
+        activeFile: undefined, activeEditor: { openFile: vi.fn() }, on: vi.fn(() => () => {}), ribbon: {},
+        sidebar: { addPanel: vi.fn((_panel: unknown) => () => {}), switch: vi.fn(), container: { addPanel: (panel: { containerEl: HTMLElement }) => document.body.append(panel.containerEl), removePanel: (panel: { containerEl: HTMLElement }) => panel.containerEl.remove() } },
+      },
+    }
+    vi.stubGlobal('JSBridge', { invoke: vi.fn(async () => ({ files: [], folders: [] })) })
+    const plugin = new QuickAccessPlugin(app as never, { id: ID, name: 'Favorites', version: '0.1.3' } as never)
+    plugin.onload(); await vi.advanceTimersByTimeAsync(0)
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{}] as unknown as DOMRectList)
+    const panel = app.workspace.sidebar.addPanel.mock.calls[0]?.[0] as { containerEl: HTMLElement; show(): void }
+    panel.show(); await vi.advanceTimersByTimeAsync(0)
+    // The setting is off, so Core is not asked; Core's already-loaded data still shows the pill.
+    expect(marketplace.loadCommunityPlugins).not.toHaveBeenCalled()
+    panel.containerEl.querySelector<HTMLButtonElement>('[data-key="update"]')!.click()
+    const dialog = [...document.querySelectorAll<HTMLElement>('.typ-modal__wrapper')].find(node => node.style.display !== 'none')!
+    ;[...dialog.querySelectorAll('button')].find(node => node.textContent === 'Update')!.click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(updatePlugin).toHaveBeenCalledOnce()
+    expect(dialog.textContent).toContain('Favorites was not updated.')
+    plugin.onunload()
+    expect(dialog.style.display).toBe('none')
     expect(vi.getTimerCount()).toBe(0)
   })
 })

@@ -13,7 +13,7 @@
 <details open><summary>Preview controls · outside the plugin</summary><div class="preview-controls">
 <label>Theme <select id="theme"><option value="light">Light</option><option value="dark">Dark</option></select></label>
 <label>Panel <select id="panel-width"><option value="280">Narrow · 280</option><option value="340" selected>Default · 340</option><option value="400">Wide · 400</option></select></label>
-<label>Scenario <select id="scenario"><option value="everyday">Everyday use</option><option value="saved">All current locations saved</option><option value="mixed">Mixed saved / unsaved</option><option value="missing">Unavailable location</option><option value="empty">First use / no current location</option><option value="long">Long / Unicode paths</option><option value="unavailable">Native history unavailable</option><option value="recording-off">Native recording off</option><option value="per-kind">Per-kind history order only</option></select></label>
+<label>Scenario <select id="scenario"><option value="everyday">Everyday use</option><option value="saved">All current locations saved</option><option value="mixed">Mixed saved / unsaved</option><option value="missing">Unavailable location</option><option value="empty">First use / no current location</option><option value="long">Long / Unicode paths</option><option value="unavailable">Native history unavailable</option><option value="recording-off">Native recording off</option><option value="per-kind">Per-kind history order only</option><option value="update-available">Update available</option></select></label>
 <label><input id="cancel-navigation" type="checkbox"> Simulate cancelled navigation</label><label><input id="fail-save" type="checkbox"> Simulate save failure</label><button id="reset">Reset fixture</button>
 </div></details></header>
 <main class="preview-window" aria-label="Simulated Typora workspace">
@@ -25,5 +25,6 @@
 <footer id="host-status" role="status"></footer></main>
 <footer class="preview-footer"><p>Tab to navigate · Enter to activate · Arrow keys to change tabs</p><details><summary>Source and license</summary><p>Generated from production source. CI requires this file to match the current source.</p><code>{{FINGERPRINT}}</code><pre>{{LICENSE}}</pre></details></footer>
 <dialog id="settings-dialog"><h2>Community Plugin options · simulated</h2><div class="typ-modal__body"><div class="typ-main"><div class="typ-setting-tab"><div id="settings-mount" class="qa-settings-host"></div></div></div></div><p>In Typora, the panel's settings button opens Core's real options UI. This preview uses the same preference editor with fictional data.</p><button id="close-settings">Done</button></dialog>
+<dialog id="update-dialog"><h2>Update Favorites · simulated</h2><div id="update-mount"></div><p>In Typora, this confirmation opens in Core's dialog, and Update hands the work to Community Plugin Core.</p></dialog>
 <script>{{JS}}</script>
 </body></html>

@@ -155,3 +155,56 @@ describe('shared Favorites settings editor', () => {
     dispose(); expect(container.childElementCount).toBe(0)
   })
 })
+
+describe('settings updates', () => {
+  it('shows an update pill beside the installed version and opens the confirmation', () => {
+    const container = document.createElement('div'); document.body.append(container)
+    const open = vi.fn()
+    const dispose = renderSettings(container, createFavoritesState(), vi.fn(), { version: '0.1.3', update: { version: '0.1.5', open } })
+    const pill = container.querySelector<HTMLButtonElement>('.qa-settings__meta [data-action="update"]')!
+    expect(pill.textContent).toBe('Update to 0.1.5')
+    expect(pill.getAttribute('aria-label')).toBe('Update Favorites to 0.1.5')
+    expect(pill.closest('.qa-settings__fact')?.textContent).toBe('Installed 0.1.3Update to 0.1.5')
+    pill.click(); expect(open).toHaveBeenCalledOnce()
+    dispose()
+    const plain = document.createElement('div')
+    renderSettings(plain, createFavoritesState(), vi.fn(), { version: '0.1.3' })()
+    expect(plain.querySelector('[data-action="update"]')).toBeNull()
+  })
+
+  it('no longer claims that the page does not check for updates', () => {
+    const container = document.createElement('div')
+    const dispose = renderSettings(container, createFavoritesState(), vi.fn(), { version: '0.1.3' })
+    const badge = container.querySelector<HTMLElement>('[data-release-status]')!
+    expect(badge.title).toBe('Favorites is an early release. Please report problems on GitHub.')
+    dispose()
+  })
+
+  it('offers the automatic check as a setting that explains the request', async () => {
+    const container = document.createElement('div'); document.body.append(container)
+    const setEnabled = vi.fn(async () => {})
+    const dispose = renderSettings(container, createFavoritesState(), vi.fn(), { version: '0.1.3', updates: { enabled: true, setEnabled } })
+    expect([...container.querySelectorAll('.qa-settings__section > h3')].map(node => node.textContent)).toEqual(['Display', 'Ordering', 'Recent', 'Updates'])
+    const section = container.querySelector('[data-settings-section="updates"]')!
+    expect(section.textContent).toContain('Check for updates automatically')
+    expect(section.textContent).toContain('At most once a day, when this page or the Favorites panel opens, Favorites asks Community Plugin Core to check the Plugin Marketplace for a newer version.')
+    expect(section.textContent).toContain('Core downloads the Marketplace\'s public lists from GitHub. Favorites sends nothing about you or your files.')
+    const box = section.querySelector<HTMLInputElement>('input[type="checkbox"][data-setting-key="checkForUpdates"]')!
+    expect(box.checked).toBe(true)
+    box.click()
+    expect(setEnabled).toHaveBeenCalledExactlyOnceWith(false)
+    expect(box.disabled).toBe(true)
+    await vi.waitFor(() => expect(box.disabled).toBe(false))
+    dispose()
+  })
+
+  it('restores the checkbox and reports a failed save', async () => {
+    const container = document.createElement('div'); document.body.append(container)
+    const dispose = renderSettings(container, createFavoritesState(), vi.fn(), { updates: { enabled: false, setEnabled: vi.fn(async () => { throw new Error('Cannot save setting') }) } })
+    const box = container.querySelector<HTMLInputElement>('input[data-setting-key="checkForUpdates"]')!
+    box.click()
+    await vi.waitFor(() => expect(container.textContent).toContain('Cannot save setting'))
+    expect(box.checked).toBe(false); expect(box.disabled).toBe(false)
+    dispose()
+  })
+})

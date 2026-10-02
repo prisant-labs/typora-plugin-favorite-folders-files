@@ -18,6 +18,8 @@ export interface FavoritesPanelSnapshot {
   writable: boolean
   error?: string
   unavailable?: ReadonlySet<string>
+  /** A newer Favorites that Core's Marketplace offers. Absent in synthetic previews. */
+  update?: { version: string }
 }
 export interface FavoritesPanelActions {
   change(operation: FavoritesOperation): void | Promise<unknown>
@@ -25,6 +27,8 @@ export interface FavoritesPanelActions {
   open(kind: LocationKind, path: string, options?: { newWindow?: boolean }): void | Promise<void>
   reveal(kind: LocationKind, path: string): void | Promise<void>
   settings(): void | Promise<unknown>
+  /** Opens the update confirmation. */
+  update?(): void
 }
 const RECENT_SOURCE = 'Typora\'s own Recent list (File → Open Recent). Favorites reads it while this panel is open and never saves or changes it.'
 type EditorKind = 'add' | 'move' | 'groups' | 'arrange'
@@ -150,6 +154,13 @@ export class FavoritesPanelRenderer {
     const scroll = this.container.querySelector('.qa-lists, .qa-page-body')?.scrollTop ?? 0
     const header = el('div', 'qa-heading')
     const title = el('h2'); title.append(icon('star'), document.createTextNode('Favorites')); header.append(title)
+    const update = this.snapshot.update, openUpdate = this.actions.update
+    if (!this.editor && update && openUpdate) {
+      const label = `Update Favorites to ${update.version}`
+      const pill = el('button', 'qa-update-pill'); pill.type = 'button'; pill.dataset.key = 'update'; pill.title = label; pill.setAttribute('aria-label', label)
+      pill.append(icon('update'), el('span', 'qa-update-pill__label', 'Update'), document.createTextNode(update.version))
+      pill.addEventListener('click', () => openUpdate()); header.append(pill)
+    }
     if (!this.editor) {
       const add = btn('Add Favorite', 'add', () => this.openEditor('add', 'add'), 'plus')
       const groups = btn('Manage groups', 'manage', () => this.openEditor('groups', 'manage'), 'groups')

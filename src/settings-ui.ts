@@ -10,7 +10,14 @@ export interface SettingsMetadata {
   repo?: string
   openFolder?: () => void | Promise<unknown>
 }
-export interface SettingsUiOptions extends SettingsMetadata { writable?: boolean; recentAvailable?: boolean }
+export interface SettingsUiOptions extends SettingsMetadata {
+  writable?: boolean
+  recentAvailable?: boolean
+  /** A newer Favorites that Core's Marketplace offers; `open` shows the confirmation. */
+  update?: { version: string; open(): void }
+  /** The automatic update check. Stored apart from the Favorites preferences. */
+  updates?: { enabled: boolean; setEnabled(enabled: boolean): void | Promise<unknown> }
+}
 
 function safeLink(value?: string): string | undefined {
   if (!value) return undefined
@@ -25,6 +32,39 @@ function repositoryLink(value?: string): string | undefined {
   return url.protocol === 'https:' && url.hostname === 'github.com' && /^\/[\w.-]+\/[\w.-]+\/?$/.test(url.pathname) ? link : undefined
 }
 
+/** The automatic update check: a checkbox that saves through its own store and rolls back on failure. */
+function updateSetting(updates: NonNullable<SettingsUiOptions['updates']>, isDisposed: () => boolean, status: HTMLElement): HTMLElement {
+  const label = document.createElement('label'); label.className = 'qa-setting-row'
+  const text = document.createElement('span'); text.className = 'qa-settings__setting-info'
+  const name = document.createElement('span'); name.className = 'qa-settings__setting-name'; name.textContent = 'Check for updates automatically'
+  const detail = document.createElement('span'); detail.className = 'qa-settings__setting-description'
+  detail.textContent = 'At most once a day, when this page or the Favorites panel opens, Favorites asks Community Plugin Core to check the Plugin Marketplace for a newer version. Core downloads the Marketplace\'s public lists from GitHub. Favorites sends nothing about you or your files.'
+  text.append(name, detail)
+  const box = document.createElement('input'); box.type = 'checkbox'; box.checked = updates.enabled
+  box.dataset.settingKey = 'checkForUpdates'; box.setAttribute('aria-label', 'Check for updates automatically')
+  box.addEventListener('change', () => {
+    if (isDisposed() || box.disabled) return
+    const enabled = box.checked
+    box.dataset.restoreFocus = String(document.activeElement === box)
+    box.disabled = true; status.hidden = true
+    const fail = (error: unknown) => {
+      if (isDisposed()) return
+      box.checked = !enabled
+      status.textContent = error instanceof Error ? error.message : 'The setting could not be saved.'
+      status.hidden = false
+    }
+    const complete = () => {
+      if (isDisposed()) return
+      box.disabled = false
+      if (box.dataset.restoreFocus === 'true' && box.isConnected && document.activeElement === document.body) box.focus()
+      delete box.dataset.restoreFocus
+    }
+    try { Promise.resolve(updates.setEnabled(enabled)).catch(fail).finally(complete) } catch (error) { fail(error); complete() }
+  })
+  label.append(text, box)
+  return label
+}
+
 /** Shared preference controls for the registered Core settings tab and preview. */
 export function renderSettings(container: HTMLElement, state: FavoritesState, onPreferencesPatch: (patch: Partial<FavoritesPreferences>) => void | Promise<unknown>, options: SettingsUiOptions = {}): () => void {
   let disposed = false
@@ -34,7 +74,7 @@ export function renderSettings(container: HTMLElement, state: FavoritesState, on
   const top = document.createElement('div'); top.className = 'qa-settings__masthead-top'
   const heading = document.createElement('h2'); heading.textContent = 'Favorites'
   const badge = document.createElement('span'); badge.className = 'qa-settings__release-status'; badge.dataset.releaseStatus = ''; badge.textContent = 'Early release'
-  badge.title = 'Favorites is an early release. This page does not check for updates; please report problems on GitHub.'
+  badge.title = 'Favorites is an early release. Please report problems on GitHub.'
   top.append(heading, badge)
   const meta = document.createElement('div'); meta.className = 'qa-settings__meta'
   // Each fact owns its separator, so the dot never lands inside a link or a button.
@@ -43,7 +83,17 @@ export function renderSettings(container: HTMLElement, state: FavoritesState, on
     const node = document.createElement('a'); node.textContent = text; node.href = href; node.target = '_blank'; node.rel = 'noopener noreferrer'; node.dataset.link = kind; return node
   }
   if (options.author) { const href = safeLink(options.authorUrl); fact('By ', href ? link(options.author, href, 'author') : options.author) }
-  if (options.version) { const value = document.createElement('strong'); value.textContent = options.version; fact('Installed ', value) }
+  if (options.version) {
+    const value = document.createElement('strong'); value.textContent = options.version
+    const update = options.update
+    if (update) {
+      const label = `Update Favorites to ${update.version}`
+      const pill = document.createElement('button'); pill.type = 'button'; pill.className = 'qa-settings__update'; pill.dataset.action = 'update'
+      pill.title = label; pill.setAttribute('aria-label', label); pill.append(icon('update'), `Update to ${update.version}`)
+      pill.addEventListener('click', () => { if (!disposed) update.open() })
+      fact('Installed ', value, pill)
+    } else fact('Installed ', value)
+  }
   const repository = repositoryLink(options.repo); if (repository) fact(link('GitHub', repository, 'github'))
   const status = document.createElement('p'); status.className = 'qa-settings__status'; status.setAttribute('role', 'alert'); status.hidden = true
   if (options.openFolder) {
@@ -63,7 +113,7 @@ export function renderSettings(container: HTMLElement, state: FavoritesState, on
   help.textContent = 'Keep folders and documents within reach. These preferences are shared with the sidebar controls.'
   const layout = document.createElement('div'); layout.className = 'qa-settings__layout'
   const controls = document.createElement('div'); controls.className = 'qa-settings__controls'
-  const sections = Object.fromEntries(['Display', 'Ordering', 'Recent'].map(title => {
+  const sections = Object.fromEntries(['Display', 'Ordering', 'Recent', ...(options.updates ? ['Updates'] : [])].map(title => {
     const section = document.createElement('section'); section.className = 'qa-settings__section'; section.dataset.settingsSection = title.toLowerCase(); section.setAttribute('aria-label', title)
     const name = document.createElement('h3'); name.textContent = title; section.append(name); controls.append(section); return [title, section]
   }))
@@ -114,6 +164,7 @@ export function renderSettings(container: HTMLElement, state: FavoritesState, on
   capability.textContent = options.recentAvailable ? 'Recently opened ordering is available: every entry in Typora\'s Recent list has a date.'
     : 'Recently opened ordering needs a date on every entry in Typora\'s Recent list. While it is unavailable, Favorites keeps your Custom order.'
   sections.Recent.append(recentHelp, capability)
+  if (options.updates) sections.Updates.append(updateSetting(options.updates, () => disposed, status))
   let preview: FavoritesSettingsPreview | undefined = new FavoritesSettingsPreview(state.preferences)
   layout.append(controls, preview.element); root.append(masthead, help, status, layout); container.replaceChildren(root)
   // Core can hide/reopen its modal without calling the tab's onhide/onshow.
