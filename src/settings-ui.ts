@@ -159,7 +159,7 @@ export function renderSettings(container: HTMLElement, state: FavoritesState, on
     label.append(text, input); sections[key === 'layout' || key === 'groupView' ? 'Display' : 'Ordering'].append(label)
   }
   const recentHelp = document.createElement('p'); recentHelp.className = 'qa-settings__help'
-  recentHelp.textContent = 'Recent shows Typora\'s own Recent list (File → Open Recent), read while the Favorites panel is open. Favorites never saves the list or changes it. It is available in Typora for Windows, and for macOS, where it has not yet been tested.'
+  recentHelp.textContent = 'Recent shows Typora\'s own Recent list (File → Open Recent), read while the Favorites panel is open. Favorites never saves the list or changes it. It is available in Typora for Windows and macOS.'
   const capability = document.createElement('p'); capability.className = 'qa-settings__help'; capability.dataset.recentCapability = ''
   capability.textContent = options.recentAvailable ? 'Recently opened ordering is available: every entry in Typora\'s Recent list has a date.'
     : 'Recently opened ordering needs a date on every entry in Typora\'s Recent list. While it is unavailable, Favorites keeps your Custom order.'

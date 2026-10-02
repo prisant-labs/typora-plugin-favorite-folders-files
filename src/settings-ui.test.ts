@@ -17,7 +17,8 @@ describe('shared Favorites settings editor', () => {
     expect([...container.querySelectorAll('.qa-settings__section > h3')].map(node => node.textContent)).toEqual(['Display', 'Ordering', 'Recent'])
     expect(container.textContent).toContain('File → Open Recent')
     expect(container.textContent).toContain('never saves')
-    expect(container.textContent).toContain('available in Typora for Windows, and for macOS, where it has not yet been tested')
+    expect(container.textContent).toContain('It is available in Typora for Windows and macOS.')
+    expect(container.textContent).not.toContain('not yet been tested')
     // macOS never supplies dates, so the unavailable text must not promise that the sort will arrive.
     expect(container.querySelector('[data-recent-capability]')?.textContent).toBe('Recently opened ordering needs a date on every entry in Typora\'s Recent list. While it is unavailable, Favorites keeps your Custom order.')
     expect(container.querySelector('header, footer')).toBeNull()
@@ -36,6 +37,16 @@ describe('shared Favorites settings editor', () => {
     // Flex layout trims the space in "Installed 0.1.0" and "By <link>"; facts must stay inline text.
     expect(css).not.toMatch(/\.qa-settings__fact \{[^}]*display: (inline-)?flex/)
     dispose()
+  })
+
+  it('keeps the update pill text at full contrast and marks it with the theme accent', () => {
+    // Typora's base palette sets the accent to #777; the pill must not look like a disabled control.
+    const css = readFileSync(join(process.cwd(), 'src', 'settings.scss'), 'utf8')
+    const pill = css.match(/\.qa-settings__update \{([^}]*)\}/)?.[1] ?? ''
+    expect(pill).toMatch(/(^|;)\s*color: var\(--settings-text\)/)
+    expect(pill).toMatch(/border: 1px solid var\(--update-accent\)/)
+    expect(pill).toMatch(/background: color-mix\(in srgb, var\(--update-accent\) \d+%, transparent\)/)
+    expect(css).toMatch(/\.qa-settings__update svg \{[^}]*color: var\(--update-accent\)/)
   })
 
   it('stretches the preview to the settings pane instead of a fixed panel height', () => {

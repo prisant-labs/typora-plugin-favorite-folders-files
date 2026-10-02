@@ -1,5 +1,10 @@
 :root { --panel-width: 340px; --bg-color: #fffefa; --side-bar-bg-color: #f5f4f0; --text-color: #303734; --text-muted: #68706b; --base-border: #dddfd7; --item-hover-bg-color: #eaece5; --active-file-border-color: #326950; --active-file-bg-color: #e1ece2; --page: #e9e8e2; color-scheme: light; font: 14px 'Segoe UI', system-ui, sans-serif; color: var(--text-color); background: var(--page); }
 :root[data-theme=dark] { --bg-color: #232825; --side-bar-bg-color: #292e2a; --text-color: #e2e7df; --text-muted: #adb6ac; --base-border: #414a42; --item-hover-bg-color: #374038; --active-file-border-color: #acd3b2; --active-file-bg-color: #364b3c; --page: #191e1b; color-scheme: dark; }
+// Typora's own palettes: base.css, base-control.css and themes/github.css; and themes/night.css. Typora defines no
+// --text-muted or --base-border, so the plugin's mounts drop the shell's values and use the plugin's own fallbacks.
+:root[data-theme=typora] { --bg-color: #ffffff; --side-bar-bg-color: #fafafa; --text-color: #333333; --text-muted: #6f6f6f; --base-border: #dddddd; --item-hover-bg-color: #e6f0fe; --active-file-border-color: #777777; --active-file-bg-color: #eeeeee; --page: #e8e8e8; color-scheme: light; }
+:root[data-theme=typora-night] { --bg-color: #363b40; --side-bar-bg-color: #2e3033; --text-color: #b8bfc6; --text-muted: #8d949b; --base-border: #4a4f55; --item-hover-bg-color: #70717d; --active-file-border-color: #8d8df0; --active-file-bg-color: #222222; --page: #1f2123; color-scheme: dark; }
+:root[data-theme^=typora] :is(#panel-mount, #settings-mount, #update-mount) { --text-muted: initial; --base-border: initial; }
 * { box-sizing: border-box; } body { margin: 0; } [hidden] { display: none !important; }
 button, input, select { font: inherit; color: inherit; } button, select { cursor: pointer; } button { background: transparent; border: 1px solid var(--base-border); border-radius: 5px; padding: 6px 9px; } button:hover { background: var(--item-hover-bg-color); }
 input, select { background: var(--bg-color); border: 1px solid var(--base-border); border-radius: 5px; padding: 5px; } button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--active-file-border-color); outline-offset: 2px; }
@@ -7,7 +12,7 @@ input, select { background: var(--bg-color); border: 1px solid var(--base-border
 .preview-header h1 { font: 500 25px/1.3 Georgia, serif; margin: 3px 0 6px; } .preview-header p { color: var(--text-muted); margin: 0; line-height: 1.6; font-size: 13px; }
 .eyebrow { font: 11px/1.6 'Segoe UI', system-ui, sans-serif !important; text-transform: uppercase; letter-spacing: .11em; color: var(--text-muted); }
 .preview-header details { max-width: 630px; font-size: 12px; } summary { cursor: pointer; color: var(--active-file-border-color); } .preview-header summary { text-align: right; }
-.preview-controls { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 10px 14px; margin-top: 12px; } label { display: flex; align-items: center; gap: 6px; }
+.preview-controls { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 10px 14px; margin-top: 12px; } .preview-controls label { display: flex; align-items: center; gap: 6px; }
 .preview-window { max-width: 1408px; margin: auto; border: 1px solid var(--base-border); border-radius: 9px; overflow: hidden; background: var(--bg-color); box-shadow: 0 18px 55px #252d2412; }
 .titlebar { display: flex; align-items: center; height: 34px; padding: 0 15px; gap: 9px; background: var(--side-bar-bg-color); border-bottom: 1px solid var(--base-border); font-size: 12px; } .titlebar > span:last-child { margin-left: auto; font-size: 11px; color: var(--text-muted); }
 .appmark { font-family: Georgia, serif; font-weight: bold; } .workspace { display: grid; grid-template-columns: 46px var(--panel-width) minmax(0,1fr) 190px; height: 720px; min-height: 440px; }

@@ -26,6 +26,26 @@ All notable changes to Favorites for Typora are recorded here. Versions follow
   check, instead of saying that Favorites makes no network requests.
 - The settings page's "Early release" note no longer says that the page does
   not check for updates.
+- The README, the user guide and the settings page no longer say that Recent
+  on macOS is untested. On a Mac, its **Files** and **Folders** tabs were
+  checked against Typora's own Recent list.
+- The preview page offers Typora's default and Night palettes beside its own,
+  so selected states can be reviewed in those themes without Typora. Its own
+  control styling no longer leaks into the panel, which had left-aligned the
+  **Views** options there.
+
+### Fixed
+
+- The selected **Favorites** or **Recent** tab, the selected **Files** or
+  **Folders** tab and the selected **Views** options no longer look faded on
+  themes whose accent color is gray, including Typora's default theme. Their
+  text took the accent color, which there is paler than unselected text.
+  Selected text now stays at full contrast and bold, and an accent outline and
+  tint mark the selection. The **Update** pill uses the same style, and a
+  saved star is now filled.
+- On themes that define no muted text or border color, such as Typora's Night
+  theme, Favorites now derives both from the theme's own text and background
+  colors instead of using light-theme grays.
 
 ## 0.1.3 (2026-10-01)
 

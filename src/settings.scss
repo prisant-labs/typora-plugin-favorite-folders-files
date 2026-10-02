@@ -29,9 +29,10 @@
 .qa-settings__folder { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; padding: 2px 6px; border: 1px solid var(--settings-border); border-radius: 4px; color: var(--settings-text); background: var(--settings-bg); font: inherit; font-size: 10px; line-height: 1.1; white-space: nowrap; cursor: pointer; }
 .qa-settings__folder svg { flex: none; width: 12px; height: 12px; stroke-width: 1.6; }
 .qa-settings__folder:not(:disabled):hover { background: color-mix(in srgb, var(--settings-text) 6%, var(--settings-bg)); }
-.qa-settings__update { --update-accent: var(--active-file-border-color, var(--settings-text)); display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; min-height: 22px; padding: 1px 8px 1px 6px; border: 1px solid var(--update-accent); border-radius: 999px; color: var(--update-accent); background: transparent; font: inherit; font-size: 11px; font-weight: 600; line-height: 1.1; white-space: nowrap; cursor: pointer; }
-.qa-settings__update svg { flex: none; width: 12px; height: 12px; stroke-width: 2.2; }
-.qa-settings__update:hover { background: color-mix(in srgb, var(--update-accent) 10%, var(--settings-bg)); }
+.qa-settings__update { --update-accent: var(--active-file-border-color, var(--settings-text)); display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; min-height: 22px; padding: 1px 8px 1px 6px; border: 1px solid var(--update-accent); border-radius: 999px; color: var(--settings-text); background: transparent; background: color-mix(in srgb, var(--update-accent) 14%, transparent); font: inherit; font-size: 11px; font-weight: 600; line-height: 1.1; white-space: nowrap; cursor: pointer; }
+// The accent marks the pill; its text stays full contrast, since Typora's base palette sets the accent to #777.
+.qa-settings__update svg { flex: none; width: 12px; height: 12px; stroke-width: 2.2; color: var(--update-accent); }
+.qa-settings__update:hover { background: color-mix(in srgb, var(--update-accent) 26%, transparent); }
 .qa-settings .qa-setting-row > input[type=checkbox] { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--active-file-border-color, var(--settings-text)); cursor: pointer; }
 .qa-settings__intro { margin: 4px 0 20px; color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
 .qa-settings__layout { display: flex; flex: 1 0 auto; align-items: stretch; gap: 24px; }

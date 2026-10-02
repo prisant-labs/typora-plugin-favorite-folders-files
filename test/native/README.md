@@ -76,6 +76,12 @@ Keep real paths, screenshots and native history in local-only receipts.
 - Review light/dark at 280px and 340px, larger text, long group names and duplicate
   basenames. Check hover/focus/touch actions, keyboard radio/menu behavior, input
   composition, narrow popover bounds, drag autoscroll and outside-drop cancellation.
+- With Typora's default Github theme, and again with Night, check that the
+  selected **Favorites**/**Recent** tab, the selected **Files**/**Folders** tab
+  and the selected **Views** options read as selected rather than faded, and
+  that a saved star is filled. Typora's default palette makes the theme accent
+  gray, which is the case 0.1.4 fixes; the preview page's "Typora default" and
+  "Typora Night" themes approximate it.
 - Repeat host checks with Core tabs enabled/disabled and separately on macOS.
 - Check that the panel fills the sidebar at narrow and wide sidebar widths, on
   Windows and on macOS. On macOS, Typora's own header row (the "Outline" or

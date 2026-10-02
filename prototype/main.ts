@@ -90,7 +90,7 @@ function fixture(name: string) {
   if (name === 'recording-off') nativeFixture = { status: 'recording-off' }
   if (name === 'per-kind') nativeFixture = { ...nativeFixture, order: 'per-kind', entries: nativeFixture.entries!.map(({ kind, path }) => ({ kind, path })) }
   update = name === 'update-available' ? '0.1.5' : undefined
-  status.textContent = 'Synthetic data and a simulated live Recent list. The panel, editor workflows, model and CSS are production code. Reading Typora\'s real Recent list is Windows-only and requires native verification.'
+  status.textContent = 'Synthetic data and a simulated live Recent list. The panel, editor workflows, model and CSS are production code. Reading Typora\'s real Recent list happens only in Typora.'
   render()
 }
 function syncSettings() {

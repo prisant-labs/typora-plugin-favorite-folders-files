@@ -59,6 +59,10 @@ describe('CI visual anchor', () => {
       expect(doc.querySelector('[data-key=history-import]')).toBeNull()
       expect(doc.querySelector('.qa-age')).toBeNull()
       expect(doc.querySelector('#ribbon-quick-access svg')?.getAttribute('width')).toBe('24')
+      // Typora's own palettes, which define no muted or border color, are reviewable beside the preview's own.
+      expect([...doc.querySelectorAll<HTMLOptionElement>('#theme option')].map(option => option.value)).toEqual(['light', 'dark', 'typora', 'typora-night'])
+      expect(html).toMatch(/\[data-theme\^=typora\][^{]*#panel-mount[^{]*\{--text-muted: ?initial;--base-border: ?initial\}/)
+      expect(html).not.toContain('Windows-only')
       // Host shell mirrors Core's settings wrappers so the preview's pane-height stretch is reviewable.
       expect(doc.querySelector('.typ-modal__body > .typ-main > .typ-setting-tab > #settings-mount.qa-settings-host')).not.toBeNull()
       const search = doc.querySelector<HTMLInputElement>('[data-key=search]')!

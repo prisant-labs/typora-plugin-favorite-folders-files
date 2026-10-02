@@ -28,7 +28,7 @@ Favorites is a plugin for [Typora Community Plugin](https://github.com/typora-co
 
 - Typora 1.4.0 or newer
 - Typora Community Plugin 2.10.21 or newer
-- Windows or macOS (Recent on macOS is new in 0.1.3 and not yet tested there; see [Recent](#recent))
+- Windows or macOS (Recent on macOS is new in 0.1.3; see [Recent](#recent))
 
 **From the marketplace:** open Typora's settings, go to **Plugin
 Marketplace**, search for **Favorites**, and install it. Then go to
@@ -90,8 +90,8 @@ Recent**, split into **Files** and **Folders**.
 - The label next to **Views** says **Most recent first** when every entry has a
   date. If Typora left some entries without a date, it says **Typora's order**
   and each list keeps Typora's own order.
-- Recent works in Typora for Windows. Recent on macOS is new in 0.1.3 and has
-  not yet been tested in Typora on macOS.
+- Recent works in Typora for Windows and macOS. Recent on macOS is new in
+  0.1.3.
 - On macOS, Typora passes its Recent files to Favorites without dates, so
   Recent says **Typora's order** there and **Recently opened** sorting is
   unavailable.

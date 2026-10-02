@@ -26,16 +26,16 @@ alongside them.
 
 ![Manage groups: organizing groups and adding a new one](docs/images/manage-groups.png)
 
-**Recent** (Windows; macOS is new and not yet tested)
+**Recent** (Windows and macOS)
 
 - Shows Typora's own Recent list (**File → Open Recent**) in **Files** and
   **Folders** tabs, with no import step. It stays current as you open files and
   folders, and it's the same in every Typora window.
 - Favorites only reads the list while the panel is visible, or when you run
   **Favorites: Copy Recent diagnostics**. It never saves, sends or changes it.
-- On macOS, Recent is new in 0.1.3 and has not yet been tested in Typora on
-  macOS. If it misbehaves, run **Favorites: Copy Recent diagnostics** and
-  attach the report to an issue.
+- On macOS, Recent is new in 0.1.3. Its **Files** and **Folders** tabs have
+  been checked against Typora's own list on a Mac. If it misbehaves, run
+  **Favorites: Copy Recent diagnostics** and attach the report to an issue.
 
 ![The Recent tab listing recent Markdown files](docs/images/recent.png)
 
@@ -124,9 +124,9 @@ to Community Plugin "vaults", and an FAQ.
   re-tested on macOS. The underlying sidebar behavior affects every plugin
   panel and is reported to Typora Community Plugin as
   [typora-community-plugin#102](https://github.com/typora-community-plugin/typora-community-plugin/issues/102).
-  Recent on macOS is new in 0.1.3. It reads two macOS channels found in Typora's page code. A probe confirmed both
-  on a Mac, but Favorites' macOS Recent itself has not been tested in Typora on
-  macOS yet.
+  Recent on macOS is new in 0.1.3. It reads two macOS channels found in
+  Typora's page code. On a Mac, its Files and Folders tabs matched Typora's own
+  Recent list; the rest of the macOS Recent checks are still in progress.
 - **Recently opened** sorting needs a date on every entry in Typora's Recent
   list. When some entries have none, it stays unavailable and each Recent tab
   keeps Typora's own order.
