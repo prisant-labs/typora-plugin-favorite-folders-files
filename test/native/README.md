@@ -76,6 +76,12 @@ Keep real paths, screenshots and native history in local-only receipts.
 - Review light/dark at 280px and 340px, larger text, long group names and duplicate
   basenames. Check hover/focus/touch actions, keyboard radio/menu behavior, input
   composition, narrow popover bounds, drag autoscroll and outside-drop cancellation.
+- With Typora's default Github theme, and again with Night, check that the
+  selected **Favorites**/**Recent** tab, the selected **Files**/**Folders** tab
+  and the selected **Views** options read as selected rather than faded, and
+  that a saved star is filled. Typora's default palette makes the theme accent
+  gray, which is the case 0.1.4 fixes; the preview page's "Typora default" and
+  "Typora Night" themes approximate it.
 - Repeat host checks with Core tabs enabled/disabled and separately on macOS.
 - Check that the panel fills the sidebar at narrow and wide sidebar widths, on
   Windows and on macOS. On macOS, Typora's own header row (the "Outline" or
@@ -245,6 +251,40 @@ Then show the Favorites panel again and check, using disposable native history:
 - Click a Recent folder to switch this window to it. On macOS, Cmd+click opens
   it in this window too, because Favorites opens new windows only on Windows.
 
+## Update pill
+
+The pill appears only when the Plugin Marketplace offers a version newer than
+the installed one. Until a newer release exists, test with a build that claims
+an older version:
+
+1. Run `pnpm build`. Copy `dist/` into Community Plugin's `plugins` folder as
+   `prisant-labs.favorite-folders-files`, as a real folder and not a link.
+   Core's update deletes the plugin folder before it downloads, and a link
+   could expose the build output.
+2. In the copied `manifest.json`, set `version` to an older version, such as
+   `0.1.2`. Restart Typora.
+3. Open the Favorites panel. Within a few seconds, a pill naming the newest
+   released version appears in the header. At a narrow sidebar width, it shows
+   only an arrow and the version. The settings page shows the same version
+   beside **Installed**.
+4. Click the panel pill. Check the confirmation text, and that the release link
+   opens the GitHub release page. Click **Cancel**: nothing changes. Open it
+   again with the keyboard (Tab to the pill, then Enter) and press **Escape**:
+   the dialog closes, focus returns to the pill, and nothing changes.
+5. Click the pill again, then **Update**. Core reports success, the panel
+   reloads without a pill, and your saved Favorites are intact.
+6. Repeat steps 1 and 2, then start the update from the **settings page** pill.
+   Core unloads Favorites while its own settings window shows the Favorites
+   tab. Record what that window shows afterwards.
+7. Turn off **Check for updates automatically**, repeat steps 1 and 2, and open
+   the panel. No pill appears until you open Core's **Installed Plugins** or
+   **Plugin Marketplace** tab and return to the panel.
+8. With two Typora windows open, update in one. The other window keeps working
+   on the old version, including editing Favorites, until it restarts.
+
+Record each step in the native acceptance worksheet. Until then, describe the
+pill as implemented but not verified in Typora.
+
 ## Migration and recovery
 
 The IndexedDB database is `prisant-labs.favorite-folders-files`, object store
@@ -253,6 +293,9 @@ deleted; it stays on disk untouched. On the first v2 read of a valid v1 `current
 one Ungrouped Favorite in retained order. The complete original record is copied
 to `recovery:v1` in the same transaction that writes v2 `current`.
 Recent-only v1 entries remain exclusively in the recovery copy.
+The update setting and the last update check live in a separate `updates`
+record. Saved Favorites accept an exact set of preference keys, so this record
+stays outside `current`, and older versions never read it.
 
 Before testing an upgrade, back up the browser profile or export the original
 record. Use disposable seeded v1 data to test migration, interrupted writes,
@@ -268,5 +311,7 @@ data can remove both records.
 ## Filesystem boundary
 
 The plugin navigates to targets and asks the OS to reveal them. It does not move,
-rename or delete files/folders. Native bridge dispatch completion is not proof
+rename or delete files/folders. The update pill only asks Community Plugin Core
+to update Favorites after the user confirms; Core replaces the plugin's own
+folder. Native bridge dispatch completion is not proof
 of a completed navigation; Current derives only from observed host state.

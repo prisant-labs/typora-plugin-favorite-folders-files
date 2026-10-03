@@ -26,16 +26,16 @@ alongside them.
 
 ![Manage groups: organizing groups and adding a new one](docs/images/manage-groups.png)
 
-**Recent** (Windows; macOS is new and not yet tested)
+**Recent** (Windows and macOS)
 
 - Shows Typora's own Recent list (**File → Open Recent**) in **Files** and
   **Folders** tabs, with no import step. It stays current as you open files and
   folders, and it's the same in every Typora window.
 - Favorites only reads the list while the panel is visible, or when you run
   **Favorites: Copy Recent diagnostics**. It never saves, sends or changes it.
-- On macOS, Recent is new in 0.1.3 and has not yet been tested in Typora on
-  macOS. If it misbehaves, run **Favorites: Copy Recent diagnostics** and
-  attach the report to an issue.
+- On macOS, Recent is new in 0.1.3. Its **Files** and **Folders** tabs have
+  been checked against Typora's own list on a Mac. If it misbehaves, run
+  **Favorites: Copy Recent diagnostics** and attach the report to an issue.
 
 ![The Recent tab listing recent Markdown files](docs/images/recent.png)
 
@@ -59,6 +59,14 @@ alongside them.
   there.
 - If a Favorite's file or folder has moved, its row is marked **Unavailable**
   and the shortcut is kept until you remove it.
+
+**Updates**
+
+- When the Plugin Marketplace has a newer Favorites, an **Update** pill with
+  the new version appears in the panel header and on the settings page.
+- Click it to see what the update does, then confirm. Community Plugin Core
+  downloads and reloads Favorites; your saved Favorites are kept.
+- The daily check can be turned off in the settings under **Updates**.
 
 **Settings**
 
@@ -93,7 +101,14 @@ to Community Plugin "vaults", and an FAQ.
 - Your Favorites are stored only on this computer, in Typora's local storage
   (an IndexedDB database named `prisant-labs.favorite-folders-files`), and are
   shared by every Typora window.
-- Favorites makes no network requests and collects no telemetry.
+- Favorites collects no telemetry and sends nothing about you or your files.
+  It causes network requests in two cases, both carried out by Community
+  Plugin Core. The update check: at most once a day, when the panel or its
+  settings page opens, Favorites asks Core to check the Plugin Marketplace for
+  a newer version, and Core downloads the Marketplace's public lists from
+  GitHub. Turn this off in Favorites' settings under **Updates**. And an update
+  you confirm: Core downloads the new version, after reloading those lists if
+  its copy is out of date.
 - Recent is read from Typora while the panel is visible, or when you run the
   diagnostics command. It is kept in memory and never written anywhere. The
   diagnostics report holds no paths or names.
@@ -109,9 +124,9 @@ to Community Plugin "vaults", and an FAQ.
   re-tested on macOS. The underlying sidebar behavior affects every plugin
   panel and is reported to Typora Community Plugin as
   [typora-community-plugin#102](https://github.com/typora-community-plugin/typora-community-plugin/issues/102).
-  Recent on macOS is new in 0.1.3. It reads two macOS channels found in Typora's page code. A probe confirmed both
-  on a Mac, but Favorites' macOS Recent itself has not been tested in Typora on
-  macOS yet.
+  Recent on macOS is new in 0.1.3. It reads two macOS channels found in
+  Typora's page code. On a Mac, its Files and Folders tabs matched Typora's own
+  Recent list; the rest of the macOS Recent checks are still in progress.
 - **Recently opened** sorting needs a date on every entry in Typora's Recent
   list. When some entries have none, it stays unavailable and each Recent tab
   keeps Typora's own order.

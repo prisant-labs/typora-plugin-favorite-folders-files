@@ -3,6 +3,50 @@
 All notable changes to Favorites for Typora are recorded here. Versions follow
 [semantic versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- **Update pill.** When the Plugin Marketplace has a newer Favorites, the panel
+  header and the settings page show an **Update** pill with the new version.
+  Clicking it opens a confirmation; **Update** hands the work to Community
+  Plugin Core, which downloads the new version and reloads Favorites. Core
+  first reloads its Marketplace lists if its copy is out of date. Saved
+  Favorites are kept. If the update cannot start,
+  the confirmation says so.
+- **Updates** setting: **Check for updates automatically**, on by default. At
+  most once a day, when the panel or the settings page opens, Favorites asks
+  Core to check the Plugin Marketplace. Core downloads the Marketplace's public
+  lists from GitHub; Favorites sends nothing about you or your files. With the
+  check off, the pill can still appear after you open Core's own plugin tabs.
+
+### Changed
+
+- The privacy notes in the README and the user guide now describe the update
+  check, instead of saying that Favorites makes no network requests.
+- The settings page's "Early release" note no longer says that the page does
+  not check for updates.
+- The README, the user guide and the settings page no longer say that Recent
+  on macOS is untested. On a Mac, its **Files** and **Folders** tabs were
+  checked against Typora's own Recent list.
+- The preview page offers Typora's default and Night palettes beside its own,
+  so selected states can be reviewed in those themes without Typora. Its own
+  control styling no longer leaks into the panel, which had left-aligned the
+  **Views** options there.
+
+### Fixed
+
+- The selected **Favorites** or **Recent** tab, the selected **Files** or
+  **Folders** tab and the selected **Views** options no longer look faded on
+  themes whose accent color is gray, including Typora's default theme. Their
+  text took the accent color, which there is paler than unselected text.
+  Selected text now stays at full contrast and bold, and an accent outline and
+  tint mark the selection. The **Update** pill uses the same style, and a
+  saved star is now filled.
+- On themes that define no muted text or border color, such as Typora's Night
+  theme, Favorites now derives both from the theme's own text and background
+  colors instead of using light-theme grays.
+
 ## 0.1.3 (2026-10-01)
 
 ### Added

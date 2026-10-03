@@ -117,6 +117,37 @@ describe('Favorites production panel', () => {
   it('separates the View row from the collection tabs', () => {
     expect(readFileSync(join(process.cwd(), 'src', 'style.scss'), 'utf8')).toMatch(/\.qa-controls \{[^}]*border-bottom: 1px solid var\(--qa-line\)/)
   })
+  it('keeps selected text at full contrast and marks the selection with the theme accent', () => {
+    // Typora's base palette sets the accent to #777, paler than muted text, so accent-colored text reads as disabled.
+    const css = readFileSync(join(process.cwd(), 'src', 'style.scss'), 'utf8')
+    const rule = (selector: RegExp) => css.match(new RegExp(`${selector.source} \\{([^}]*)\\}`))?.[1] ?? ''
+    for (const selector of [/\.qa-tabs \[aria-selected=true\]/, /\.qa-recent-filters \[aria-pressed=true\]/, /\.qa-segments label:has\(input:checked\)/]) {
+      const declarations = rule(selector)
+      expect(declarations).toMatch(/(^|;)\s*color: var\(--qa-text\)/)
+      expect(declarations).not.toMatch(/(^|;)\s*color: var\(--qa-accent\)/)
+      expect(declarations).toMatch(/font-weight: 600/)
+      expect(declarations).toMatch(/var\(--qa-accent\)/)
+    }
+    expect(rule(/\.qa-recent-filters button/)).toMatch(/color: var\(--qa-muted\)/)
+    expect(rule(/\.qa-segments label/)).toMatch(/color: var\(--qa-muted\)/)
+    // An engine without color-mix drops only the second declaration and keeps a plain fill.
+    for (const selector of [/\.qa-recent-filters \[aria-pressed=true\]/, /\.qa-segments label:has\(input:checked\)/, /\.qa-update-pill/]) {
+      expect(rule(selector)).toMatch(/background: var\(--qa-current\); background: color-mix\(in srgb, var\(--qa-accent\) \d+%, transparent\)/)
+    }
+    expect(rule(/\.qa-update-pill/)).toMatch(/(^|;)\s*color: var\(--qa-text\)/)
+    expect(rule(/\.qa-update-pill svg/)).toMatch(/color: var\(--qa-accent\)/)
+    // A saved star is filled, so it never depends on the accent being darker than an unsaved one.
+    expect(rule(/\.qa-row-actions \[aria-pressed=true\] svg/)).toMatch(/fill: currentColor/)
+  })
+  it('derives muted text and lines from the theme when Typora defines neither', () => {
+    // Typora's themes define no --text-muted or --base-border, so a dark theme would inherit light-theme grays.
+    const css = readFileSync(join(process.cwd(), 'src', 'style.scss'), 'utf8')
+    expect(css).toMatch(/--qa-muted: var\(--text-muted, #68706b\);/)
+    expect(css).toMatch(/--qa-line: var\(--base-border, #dddfd7\);/)
+    const supported = css.match(/@supports \(color: color-mix\(in srgb, red, blue\)\) \{([\s\S]*?)\n\}/)?.[1] ?? ''
+    expect(supported).toMatch(/--qa-muted: var\(--text-muted, color-mix\(in srgb, var\(--qa-text\) \d+%, var\(--qa-bg\)\)\);/)
+    expect(supported).toMatch(/--qa-line: var\(--base-border, color-mix\(in srgb, var\(--qa-text\) \d+%, var\(--qa-bg\)\)\);/)
+  })
   it('uses frozen defaults, header controls, mixed groups, and no whole Favorites collapse in tabs', () => {
     const f = fixture()
     expect(f.container.querySelector('h2')?.textContent).toBe('Favorites')
@@ -353,5 +384,47 @@ describe('Favorites production panel', () => {
     expect(body.scrollTop).toBe(64)
     const underPointer = rows.find(row => { const r = row.getBoundingClientRect(); return r.top <= 185 && r.bottom >= 185 })!
     expect(f.container.querySelector<HTMLElement>('.qa-drop-before, .qa-drop-after')?.dataset.groupId).toBe(underPointer.dataset.groupId)
+  })
+})
+
+describe('update pill', () => {
+  function pillFixture(update?: { version: string }, withAction = true) {
+    const container = document.createElement('div'); document.body.append(container)
+    const actions = { change: vi.fn(), commit: vi.fn(), open: vi.fn(), reveal: vi.fn(), settings: vi.fn(), ...(withAction ? { update: vi.fn() } : {}) }
+    const renderer = new FavoritesPanelRenderer(container, actions)
+    const history = normalizeHistory({ status: 'ready', order: 'global', entries: [] }, 'darwin')
+    renderer.update({ state: createFavoritesState(), current: {}, platform: 'darwin', history, writable: true, update })
+    cleanups.push(() => renderer.dispose())
+    return { container, actions, pill: () => container.querySelector<HTMLButtonElement>('.qa-heading [data-key="update"]') }
+  }
+
+  it('names the newer version between the title and the header buttons', () => {
+    const f = pillFixture({ version: '0.1.5' })
+    const pill = f.pill()!
+    expect(pill.classList.contains('qa-update-pill')).toBe(true)
+    expect(pill.getAttribute('aria-label')).toBe('Update Favorites to 0.1.5')
+    expect(pill.title).toBe('Update Favorites to 0.1.5')
+    expect(pill.querySelector('.qa-update-pill__label')?.textContent).toBe('Update')
+    expect(pill.textContent).toBe('Update0.1.5')
+    const heading = [...f.container.querySelector('.qa-heading')!.children]
+    expect(heading.indexOf(pill)).toBe(1)
+    expect(heading[0].tagName).toBe('H2')
+    pill.click()
+    expect(f.actions.update).toHaveBeenCalledOnce()
+  })
+
+  it('shows no pill without an update, without an update action, or on an editor page', () => {
+    expect(pillFixture().pill()).toBeNull()
+    expect(pillFixture({ version: '0.1.5' }, false).pill()).toBeNull()
+    const f = pillFixture({ version: '0.1.5' })
+    ;[...f.container.querySelectorAll<HTMLButtonElement>('button')].find(node => node.getAttribute('aria-label') === 'Add Favorite')!.click()
+    expect(f.pill()).toBeNull()
+  })
+
+  it('shortens the pill in a narrow sidebar and never squeezes it', () => {
+    const css = readFileSync(join(process.cwd(), 'src', 'style.scss'), 'utf8')
+    expect(css).toMatch(/\.qa-heading \{[^}]*container-type: inline-size/)
+    expect(css).toMatch(/@container \(max-width: \d{3}px\) \{[^}]*\.qa-update-pill__label \{ display: none; \}/)
+    expect(css).toMatch(/\.qa-update-pill \{[^}]*flex: none/)
   })
 })

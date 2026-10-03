@@ -22,7 +22,9 @@
   .qa-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--qa-line); margin: 0 13px 11px; }
   .qa-tabs button { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; font-size: 12px; padding: 7px 0 9px; border-radius: 0; border-bottom: 2px solid transparent; color: var(--qa-muted); }
   .qa-tabs svg { width: 16px; height: 16px; }
-  .qa-tabs [aria-selected=true] { color: var(--qa-accent); border-bottom-color: var(--qa-accent); font-weight: 600; }
+  // Selected text stays full contrast and the accent only marks it: Typora's base palette sets the accent to #777,
+  // paler than muted text, so accent-colored text would make the selected item look disabled.
+  .qa-tabs [aria-selected=true] { color: var(--qa-text); border-bottom-color: var(--qa-accent); font-weight: 600; }
   .qa-search { display: flex; align-items: center; gap: 5px; margin: 0 13px 11px; padding: 0 7px; border: 1px solid var(--qa-line); border-radius: 5px; background: var(--bg-color, #fffefa); color: var(--qa-muted); }
   .qa-search input { background: transparent; border: 0; border-radius: 5px; min-width: 0; width: 100%; padding: 8px 3px; font-size: 12px; }
   .qa-filter { display: flex; align-items: center; gap: 7px; margin: 0 14px 12px; font-size: 11px; }
@@ -50,6 +52,7 @@
   .qa-row-actions .qa-icon-button { min-width: 26px; width: 26px; height: 26px; padding: 4px; }
   .qa-row-actions svg { width: 14px; height: 14px; }
   .qa-row-actions [aria-pressed=true] { color: var(--qa-accent); }
+  .qa-row-actions [aria-pressed=true] svg { fill: currentColor; }
   .qa-row:hover .qa-row-actions, .qa-row:focus-within .qa-row-actions { opacity: 1; }
   .qa-empty { font-size: 12px; color: var(--qa-muted); padding: 10px 12px; line-height: 1.6; margin: 0; }
   .qa-missing { font-size: 10px; color: var(--text-error, #925b23); }
@@ -61,6 +64,14 @@
   .qa-search-results { padding: 6px 7px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px; font-size: 11px; color: var(--qa-muted); }
   @media (hover: none) { .qa-row-actions { opacity: 1; } }
 }
+// Typora's themes define no muted text or border color, so derive both from the theme's own text and background.
+// A custom property cannot fall back by declaration order, so engines without color-mix keep the fixed values above.
+@supports (color: color-mix(in srgb, red, blue)) {
+  .quick-access {
+    --qa-muted: var(--text-muted, color-mix(in srgb, var(--qa-text) 75%, var(--qa-bg)));
+    --qa-line: var(--base-border, color-mix(in srgb, var(--qa-text) 16%, var(--qa-bg)));
+  }
+}
 .qa-ribbon-icon { width: 24px; height: 24px; display: block; }
 // Core clones the ribbon icon into its right-click menu; match that menu's Font Awesome glyphs.
 .typ-menuitem .qa-ribbon-icon { display: inline-block; width: 1em; height: 1em; vertical-align: -.125em; stroke-width: 2; position: relative; left: -.75rem; }
@@ -71,10 +82,16 @@
   .qa-history-import { padding: 8px 6px; display: flex; flex-wrap: wrap; gap: 6px; }
   .qa-history-import > button { border-color: var(--qa-line); font-size: 11px; }
   .qa-history-note { flex-basis: 100%; margin: 0; font-size: 11px; line-height: 1.5; color: var(--qa-muted); }
-  .qa-heading { padding: 14px 12px; gap: 3px; flex: none; }
+  .qa-heading { padding: 14px 12px; gap: 3px; flex: none; container-type: inline-size; }
   // Title keeps the icon buttons' height so editor pages (no buttons) don't shift the header.
-  .qa-heading h2 { display: flex; gap: 7px; align-items: center; margin-right: auto; min-height: 28px; font-size: 16px; min-width: 0; }
+  .qa-heading h2 { display: flex; gap: 7px; align-items: center; margin-right: auto; min-height: 28px; font-size: 16px; min-width: 0; overflow: hidden; white-space: nowrap; }
   .qa-heading h2 svg { width: 16px; color: var(--qa-accent); }
+  .qa-update-pill { flex: none; display: inline-flex; align-items: center; gap: 3px; height: 22px; margin-right: 3px; padding: 0 8px 0 6px; border-radius: 999px; border-color: var(--qa-accent); color: var(--qa-text); background: var(--qa-current); background: color-mix(in srgb, var(--qa-accent) 14%, transparent); font-size: 11px; font-weight: 600; line-height: 1; white-space: nowrap; }
+  .qa-update-pill:hover { background: var(--qa-hover); background: color-mix(in srgb, var(--qa-accent) 26%, transparent); }
+  .qa-update-pill svg { width: 13px; height: 13px; stroke-width: 2.2; color: var(--qa-accent); }
+  // Measured in the prototype: the short pill leaves 17px beside the title at a 280px panel, and "Update" adds 39px.
+  // The label returns from a 320px panel (295px of header content), keeping about 18px clear.
+  @container (max-width: 294px) { .qa-update-pill__label { display: none; } }
   .qa-search { margin: 0 12px 12px; }
   .qa-search input { font-size: 11px; padding: 8px 0; }
   .qa-controls { position: relative; flex: none; border-top: 1px solid var(--qa-line); border-bottom: 1px solid var(--qa-line); }
@@ -93,10 +110,10 @@
   legend { font-size: 11px; color: var(--qa-muted); padding: 0; margin-bottom: 7px; }
   input[type=radio] { accent-color: var(--qa-accent); margin: 0; }
   .qa-segments { display: flex; border: 1px solid var(--qa-line); border-radius: 5px; overflow: hidden; }
-  .qa-segments label { position: relative; flex: 1; text-align: center; padding: 8px 4px; cursor: pointer; }
+  .qa-segments label { position: relative; flex: 1; text-align: center; padding: 8px 4px; cursor: pointer; color: var(--qa-muted); }
   .qa-segments label + label { border-left: 1px solid var(--qa-line); }
   .qa-segments input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-  .qa-segments label:has(input:checked) { color: var(--qa-accent); background: var(--qa-current); box-shadow: inset 0 -2px var(--qa-accent); }
+  .qa-segments label:has(input:checked) { color: var(--qa-text); font-weight: 600; background: var(--qa-current); background: color-mix(in srgb, var(--qa-accent) 14%, transparent); box-shadow: inset 0 0 0 1px var(--qa-accent); }
   .qa-segments label:focus-within { outline: 2px solid var(--qa-accent); outline-offset: -3px; }
   .qa-radio-list { display: grid; gap: 3px; }
   .qa-radio-list label { display: flex; align-items: center; gap: 8px; padding: 8px 3px; cursor: pointer; }
@@ -139,8 +156,8 @@
   .qa-row:hover .qa-name, .qa-row:focus-within .qa-name, .qa-has-menu .qa-name { padding-right: 78px; }
   .qa-has-menu .qa-row-actions { opacity: 1; pointer-events: auto; }
   .qa-recent-filters { display: flex; gap: 3px; margin-bottom: 8px; }
-  .qa-recent-filters button { flex: 1; font-size: 11px; }
-  .qa-recent-filters [aria-pressed=true] { color: var(--qa-accent); background: var(--qa-current); }
+  .qa-recent-filters button { flex: 1; font-size: 11px; color: var(--qa-muted); }
+  .qa-recent-filters [aria-pressed=true] { color: var(--qa-text); font-weight: 600; border-color: var(--qa-accent); background: var(--qa-current); background: color-mix(in srgb, var(--qa-accent) 14%, transparent); }
   .qa-footer { font-size: 10px; min-height: 28px; padding: 6px 12px; flex: none; }
   .qa-status { font-size: 11px; flex: none; padding: 8px 12px; }
   .qa-status button { color: var(--qa-accent); text-decoration: underline; }
@@ -216,4 +233,13 @@
     color: var(--text-color, #303734); background: var(--bg-color, #fffefa); border: 1px solid var(--base-border, #dddfd7);
   }
   .qa-diagnostics__actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+}
+
+// Update confirmation, in Core's modal or the prototype's dialog, in Typora's own theme colors.
+.qa-update-confirmation {
+  max-width: 34em; line-height: 1.5;
+  ul { margin: 8px 0; padding-left: 1.4em; }
+  li + li { margin-top: 3px; }
+  .qa-update-confirmation__status { padding-inline-start: 8px; border-inline-start: 2px solid var(--active-file-border-color, currentColor); }
+  .qa-update-confirmation__actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
 }

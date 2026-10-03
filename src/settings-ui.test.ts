@@ -17,7 +17,8 @@ describe('shared Favorites settings editor', () => {
     expect([...container.querySelectorAll('.qa-settings__section > h3')].map(node => node.textContent)).toEqual(['Display', 'Ordering', 'Recent'])
     expect(container.textContent).toContain('File → Open Recent')
     expect(container.textContent).toContain('never saves')
-    expect(container.textContent).toContain('available in Typora for Windows, and for macOS, where it has not yet been tested')
+    expect(container.textContent).toContain('It is available in Typora for Windows and macOS.')
+    expect(container.textContent).not.toContain('not yet been tested')
     // macOS never supplies dates, so the unavailable text must not promise that the sort will arrive.
     expect(container.querySelector('[data-recent-capability]')?.textContent).toBe('Recently opened ordering needs a date on every entry in Typora\'s Recent list. While it is unavailable, Favorites keeps your Custom order.')
     expect(container.querySelector('header, footer')).toBeNull()
@@ -36,6 +37,16 @@ describe('shared Favorites settings editor', () => {
     // Flex layout trims the space in "Installed 0.1.0" and "By <link>"; facts must stay inline text.
     expect(css).not.toMatch(/\.qa-settings__fact \{[^}]*display: (inline-)?flex/)
     dispose()
+  })
+
+  it('keeps the update pill text at full contrast and marks it with the theme accent', () => {
+    // Typora's base palette sets the accent to #777; the pill must not look like a disabled control.
+    const css = readFileSync(join(process.cwd(), 'src', 'settings.scss'), 'utf8')
+    const pill = css.match(/\.qa-settings__update \{([^}]*)\}/)?.[1] ?? ''
+    expect(pill).toMatch(/(^|;)\s*color: var\(--settings-text\)/)
+    expect(pill).toMatch(/border: 1px solid var\(--update-accent\)/)
+    expect(pill).toMatch(/background: color-mix\(in srgb, var\(--update-accent\) \d+%, transparent\)/)
+    expect(css).toMatch(/\.qa-settings__update svg \{[^}]*color: var\(--update-accent\)/)
   })
 
   it('stretches the preview to the settings pane instead of a fixed panel height', () => {
@@ -153,5 +164,58 @@ describe('shared Favorites settings editor', () => {
     expect(container.textContent).toContain('Cannot save setting')
     expect(layout.value).toBe('tabs')
     dispose(); expect(container.childElementCount).toBe(0)
+  })
+})
+
+describe('settings updates', () => {
+  it('shows an update pill beside the installed version and opens the confirmation', () => {
+    const container = document.createElement('div'); document.body.append(container)
+    const open = vi.fn()
+    const dispose = renderSettings(container, createFavoritesState(), vi.fn(), { version: '0.1.3', update: { version: '0.1.5', open } })
+    const pill = container.querySelector<HTMLButtonElement>('.qa-settings__meta [data-action="update"]')!
+    expect(pill.textContent).toBe('Update to 0.1.5')
+    expect(pill.getAttribute('aria-label')).toBe('Update Favorites to 0.1.5')
+    expect(pill.closest('.qa-settings__fact')?.textContent).toBe('Installed 0.1.3Update to 0.1.5')
+    pill.click(); expect(open).toHaveBeenCalledOnce()
+    dispose()
+    const plain = document.createElement('div')
+    renderSettings(plain, createFavoritesState(), vi.fn(), { version: '0.1.3' })()
+    expect(plain.querySelector('[data-action="update"]')).toBeNull()
+  })
+
+  it('no longer claims that the page does not check for updates', () => {
+    const container = document.createElement('div')
+    const dispose = renderSettings(container, createFavoritesState(), vi.fn(), { version: '0.1.3' })
+    const badge = container.querySelector<HTMLElement>('[data-release-status]')!
+    expect(badge.title).toBe('Favorites is an early release. Please report problems on GitHub.')
+    dispose()
+  })
+
+  it('offers the automatic check as a setting that explains the request', async () => {
+    const container = document.createElement('div'); document.body.append(container)
+    const setEnabled = vi.fn(async () => {})
+    const dispose = renderSettings(container, createFavoritesState(), vi.fn(), { version: '0.1.3', updates: { enabled: true, setEnabled } })
+    expect([...container.querySelectorAll('.qa-settings__section > h3')].map(node => node.textContent)).toEqual(['Display', 'Ordering', 'Recent', 'Updates'])
+    const section = container.querySelector('[data-settings-section="updates"]')!
+    expect(section.textContent).toContain('Check for updates automatically')
+    expect(section.textContent).toContain('At most once a day, when this page or the Favorites panel opens, Favorites asks Community Plugin Core to check the Plugin Marketplace for a newer version.')
+    expect(section.textContent).toContain('Core downloads the Marketplace\'s public lists from GitHub. Favorites sends nothing about you or your files.')
+    const box = section.querySelector<HTMLInputElement>('input[type="checkbox"][data-setting-key="checkForUpdates"]')!
+    expect(box.checked).toBe(true)
+    box.click()
+    expect(setEnabled).toHaveBeenCalledExactlyOnceWith(false)
+    expect(box.disabled).toBe(true)
+    await vi.waitFor(() => expect(box.disabled).toBe(false))
+    dispose()
+  })
+
+  it('restores the checkbox and reports a failed save', async () => {
+    const container = document.createElement('div'); document.body.append(container)
+    const dispose = renderSettings(container, createFavoritesState(), vi.fn(), { updates: { enabled: false, setEnabled: vi.fn(async () => { throw new Error('Cannot save setting') }) } })
+    const box = container.querySelector<HTMLInputElement>('input[data-setting-key="checkForUpdates"]')!
+    box.click()
+    await vi.waitFor(() => expect(container.textContent).toContain('Cannot save setting'))
+    expect(box.checked).toBe(false); expect(box.disabled).toBe(false)
+    dispose()
   })
 })

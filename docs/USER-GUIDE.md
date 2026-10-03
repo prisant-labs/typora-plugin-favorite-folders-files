@@ -16,6 +16,7 @@ guide describes, please [open an issue](https://github.com/prisant-labs/typora-p
 - [Opening files and folders](#opening-files-and-folders)
 - [Views, sorting and search](#views-sorting-and-search)
 - [Settings](#settings)
+- [Updates](#updates)
 - [Where your data lives](#where-your-data-lives)
 - [Folders, vaults and scopes](#folders-vaults-and-scopes)
 - [FAQ](#faq)
@@ -27,7 +28,7 @@ Favorites is a plugin for [Typora Community Plugin](https://github.com/typora-co
 
 - Typora 1.4.0 or newer
 - Typora Community Plugin 2.10.21 or newer
-- Windows or macOS (Recent on macOS is new in 0.1.3 and not yet tested there; see [Recent](#recent))
+- Windows or macOS (Recent on macOS is new in 0.1.3; see [Recent](#recent))
 
 **From the marketplace:** open Typora's settings, go to **Plugin
 Marketplace**, search for **Favorites**, and install it. Then go to
@@ -89,8 +90,8 @@ Recent**, split into **Files** and **Folders**.
 - The label next to **Views** says **Most recent first** when every entry has a
   date. If Typora left some entries without a date, it says **Typora's order**
   and each list keeps Typora's own order.
-- Recent works in Typora for Windows. Recent on macOS is new in 0.1.3 and has
-  not yet been tested in Typora on macOS.
+- Recent works in Typora for Windows and macOS. Recent on macOS is new in
+  0.1.3.
 - On macOS, Typora passes its Recent files to Favorites without dates, so
   Recent says **Typora's order** there and **Recently opened** sorting is
   unavailable.
@@ -129,12 +130,49 @@ sliders button in the panel header. The settings page has the same layout and
 sorting options as the panel, plus a live preview. The preview uses made-up
 sample data and never shows your real Favorites or Recent list.
 
+## Updates
+
+When the Plugin Marketplace has a newer version of Favorites, an **Update**
+pill with that version appears in the panel header and next to the installed
+version on the settings page. In a narrow sidebar, the panel pill shows only an
+arrow and the version.
+
+- **Click the pill** to open a confirmation. It names both versions and links
+  to the release notes. **Update** hands the work to Community Plugin Core,
+  which downloads the new version from GitHub and reloads Favorites in that
+  window. If Core's copy of the Marketplace lists is out of date, Core reloads
+  it first, even with the automatic check off, because you asked for the
+  update. Other Typora windows keep the old
+  version until you restart them.
+- **Your saved Favorites are kept.** They live in Typora's local storage, not
+  in the plugin folder that the update replaces.
+- **If the download fails**, Core has already removed the old version, so
+  reinstall Favorites from the Plugin Marketplace. Your saved Favorites are
+  still there.
+
+How Favorites learns about a new version:
+
+- Community Plugin Core keeps a copy of the Plugin Marketplace lists while
+  Typora runs, once you open its **Installed Plugins** or **Plugin
+  Marketplace** tab. Favorites reads that copy without any request of its own.
+- With **Check for updates automatically** on (the default), Favorites also
+  asks Core to load those lists when the panel or the settings page opens, at
+  most once a day across all Typora windows. Core downloads the Marketplace's
+  public lists from GitHub, using Core's GitHub proxy setting. Favorites sends
+  nothing about you or your files.
+- Turn the check off under **Updates** on the Favorites settings page. The pill
+  can still appear after you open Core's own plugin tabs, because that costs no
+  request.
+
 ## Where your data lives
 
 - Favorites are saved on this computer, in Typora's local browser storage (an
   IndexedDB database named `prisant-labs.favorite-folders-files`). They are
   shared by every Typora window on this computer.
-- Favorites makes no network requests and collects no telemetry.
+- Favorites collects no telemetry and sends nothing about you or your files.
+  It causes network requests only through Community Plugin Core: the update
+  check, which you can turn off, and an update you confirm. Both are described
+  under [Updates](#updates).
 - Clearing Typora's application data also removes your Favorites.
 - Favorites do not sync between computers.
 
@@ -160,6 +198,12 @@ Your Favorites themselves are not stored per vault, so the same Favorites
 appear whichever folder is open.
 
 ## FAQ
+
+**How do I update Favorites?**
+Click the **Update** pill in the panel header or on the settings page, then
+**Update** in the confirmation. Without a pill, you already have the newest
+version, or the check is off; Core's **Installed Plugins** tab also offers
+updates. See [Updates](#updates).
 
 **Why can't I find Favorites in the Plugin Marketplace?**
 If you installed it manually, it only appears under **Installed Plugins**; the
