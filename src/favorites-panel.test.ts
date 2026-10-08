@@ -286,6 +286,30 @@ describe('Favorites production panel', () => {
     expect(f.container.querySelector('.qa-lists')!.scrollTop).toBe(73)
     expect(document.activeElement).toBe(f.button('Manage groups'))
   })
+  // Chromium (Typora on Windows) focuses a clicked button and scrolls a focused node into view; jsdom does neither.
+  const scrollOnFocus = () => {
+    const focus = HTMLElement.prototype.focus
+    return vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement, options?: FocusOptions) {
+      focus.call(this, options)
+      const list = this.closest('.qa-lists'); if (list && !options?.preventScroll) list.scrollTop = 0
+    })
+  }
+  it('keeps the Recent list scrolled when a refresh restores focus inside it', async () => {
+    const f = fixture(); f.button('Recent').click(); await f.flush()
+    f.button('Files').focus(); scrollOnFocus()
+    f.container.querySelector('.qa-lists')!.scrollTop = 73
+    f.render()
+    expect(f.container.querySelector('.qa-lists')!.scrollTop).toBe(73)
+    expect(document.activeElement).toBe(f.button('Files'))
+  })
+  it('still scrolls focus into view when focus moves on purpose', () => {
+    const f = fixture(); f.button('Views').click()
+    f.container.querySelector<HTMLInputElement>('.qa-popover input')!.focus()
+    const focus = scrollOnFocus()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(focus.mock.contexts.at(-1)).toBe(f.button('Views'))
+    expect(focus.mock.calls.at(-1)?.[0]?.preventScroll).not.toBe(true)
+  })
   it('requires resolving the discard guard before Save can proceed', () => {
     const f = fixture(); f.button('Add Favorite').click(); f.input('Current document: Ideas.md').click(); f.button('Cancel').click()
     expect(f.button('Save').disabled).toBe(true)

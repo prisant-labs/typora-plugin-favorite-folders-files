@@ -46,6 +46,10 @@ All notable changes to Favorites for Typora are recorded here. Versions follow
 - On themes that define no muted text or border color, such as Typora's Night
   theme, Favorites now derives both from the theme's own text and background
   colors instead of using light-theme grays.
+- On Windows, a scrolled **Recent** list no longer jumps back to the top every
+  few seconds after you click **Files**, **Folders** or a row. Favorites
+  redraws the panel regularly, and each redraw scrolled the clicked control
+  back into view. macOS was not affected.
 
 ## 0.1.3 (2026-10-01)
 
