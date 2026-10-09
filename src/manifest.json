@@ -5,7 +5,7 @@
   "author": "Prisant Labs",
   "authorUrl": "https://github.com/prisant-labs",
   "repo": "prisant-labs/typora-plugin-favorite-folders-files",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "minAppVersion": "1.4.0",
   "minCoreVersion": "2.10.21",
   "platforms": [

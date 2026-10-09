@@ -6,7 +6,7 @@ import { normalizeHistory, type HistoryInput } from '../src/native-history'
 import { renderSettings } from '../src/settings-ui'
 import { buildUpdateConfirmation } from '../src/update-confirmation'
 
-const INSTALLED = '0.1.3'
+const INSTALLED = '0.1.4'
 const REPO = 'prisant-labs/typora-plugin-favorite-folders-files'
 const mount = document.querySelector<HTMLElement>('#panel-mount')!
 const status = document.querySelector<HTMLElement>('#host-status')!
