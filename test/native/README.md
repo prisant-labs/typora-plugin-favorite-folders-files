@@ -82,6 +82,10 @@ Keep real paths, screenshots and native history in local-only receipts.
   that a saved star is filled. Typora's default palette makes the theme accent
   gray, which is the case 0.1.4 fixes; the preview page's "Typora default" and
   "Typora Night" themes approximate it.
+- On Windows, with more Recent files than fit in the panel, click **Files**,
+  scroll the list to the bottom and wait five seconds; repeat after clicking a
+  row. The list should stay where you left it. Before 0.1.4 it jumped back to
+  the top within about two seconds.
 - Repeat host checks with Core tabs enabled/disabled and separately on macOS.
 - Check that the panel fills the sidebar at narrow and wide sidebar widths, on
   Windows and on macOS. On macOS, Typora's own header row (the "Outline" or

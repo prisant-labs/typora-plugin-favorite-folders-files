@@ -141,15 +141,18 @@ export class FavoritesPanelRenderer {
     catch (error) { editor.error = error instanceof Error ? error.message : 'This change could not be applied.' }
     this.render()
   }
-  private focus(key: string) {
+  private focus(key: string, preventScroll = false) {
     const node = [...this.container.querySelectorAll<HTMLElement>('[data-key]')].find(node => node.dataset.key === key)
     if (node?.matches(':disabled')) return undefined
-    node?.focus(); return node
+    node?.focus({ preventScroll }); return node
   }
   private render() {
     if (this.disposed || this.composing || !this.snapshot) return
     const active = this.container.contains(document.activeElement) ? document.activeElement as HTMLInputElement : undefined
-    const focusKey = this.focusNext || active?.dataset.key; this.focusNext = undefined
+    const focusKey = this.focusNext || active?.dataset.key
+    // Re-focusing the same node after a refresh must not scroll it into view: Chromium (Typora on
+    // Windows) focuses clicked buttons, so the list would jump back to the clicked Files button or row.
+    const restoring = !this.focusNext; this.focusNext = undefined
     const selection = active?.tagName === 'INPUT' && ['text', 'search'].includes(active.type) ? [active.selectionStart, active.selectionEnd] : undefined
     const scroll = this.container.querySelector('.qa-lists, .qa-page-body')?.scrollTop ?? 0
     const header = el('div', 'qa-heading')
@@ -175,7 +178,7 @@ export class FavoritesPanelRenderer {
     const list = this.container.querySelector('.qa-lists, .qa-page-body')
     if (list) list.scrollTop = scroll
     if (focusKey) {
-      const target = this.focus(focusKey) || this.focus(this.editor ? 'editor-back' : 'search')
+      const target = this.focus(focusKey, restoring) || this.focus(this.editor ? 'editor-back' : 'search')
       if (target instanceof HTMLInputElement && selection && ['text', 'search'].includes(target.type)) target.setSelectionRange(selection[0], selection[1])
     }
   }
