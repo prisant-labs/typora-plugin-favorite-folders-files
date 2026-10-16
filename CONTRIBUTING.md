@@ -68,7 +68,8 @@ request (see [Release](#release)).
 ## Pull requests and CI
 
 CI runs on Ubuntu and Windows for every pull request to `main`. The **CI
-required** job passes only when both pass. Each run:
+required** job passes only when both pass, and branch protection on `main`
+requires it before a pull request can merge. Each run:
 
 1. checks that the committed preview page is current (`pnpm prototype:check`);
 2. scans every tracked file for private content (`pnpm privacy:tracked`);
