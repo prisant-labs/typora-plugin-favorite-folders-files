@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # The workflow pins each action to a commit. Dependabot proposes newer pins weekly, in one pull request.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: Update GitHub Actions
+# npm is left out on purpose. An npm update rewrites pnpm-lock.yaml, the preview page's fingerprint
+# covers the lockfile, and `pnpm prototype:check` would fail on every such pull request until someone
+# runs `pnpm prototype:build`. Update npm dependencies by hand, as CONTRIBUTING.md describes.

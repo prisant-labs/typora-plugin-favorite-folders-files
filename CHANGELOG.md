@@ -37,7 +37,10 @@ All notable changes to Favorites for Typora are recorded here. Versions follow
 - For contributors: CI now also scans every tracked file for private paths and
   keys, as the pre-commit check does for staged files (`pnpm privacy:tracked`).
   New `CONTRIBUTING.md` and `ARCHITECTURE.md` cover setup, the change workflow,
-  releases, and how the plugin stores and reads its data.
+  releases, and how the plugin stores and reads its data. The repository gains
+  a pull request template, bug report and feature request forms, a
+  `SECURITY.md` for reporting security problems privately, and weekly
+  Dependabot updates for the pinned GitHub Actions.
 - The README's Privacy section and the user guide describe what Browse saves
   and reads. On macOS, Browse reads each folder with one quoted `ls` command
   through Typora; it is the only shell command Favorites runs.

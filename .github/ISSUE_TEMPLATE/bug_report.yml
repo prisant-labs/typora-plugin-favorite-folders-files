@@ -1,0 +1,60 @@
+name: Bug report
+description: Something in Favorites does not work as the user guide describes.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Please don't paste real folder or file paths, or your user name.
+        Replace them with made-up names, such as `C:/Example/Notes/Ideas.md`.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Favorites panel.
+        2. Click Browse.
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows
+        - macOS
+    validations:
+      required: true
+  - type: input
+    id: typora-version
+    attributes:
+      label: Typora version
+      description: Shown in Typora's About window.
+    validations:
+      required: true
+  - type: input
+    id: core-version
+    attributes:
+      label: Typora Community Plugin version
+      description: If you know it.
+  - type: input
+    id: favorites-version
+    attributes:
+      label: Favorites version
+      description: Shown as "Installed" at the top of the Favorites settings page.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Recent diagnostics (for problems with Recent)
+      description: 'Run "Favorites: Copy Recent diagnostics" from the command palette, then paste the report. It holds counts and timings, never paths or names.'
+      render: text

@@ -167,7 +167,8 @@ to Community Plugin "vaults", and an FAQ.
 [CONTRIBUTING.md](CONTRIBUTING.md) explains how to set up, make a change and
 cut a release. [ARCHITECTURE.md](ARCHITECTURE.md) explains how the plugin is put
 together and where its data lives. Coding agents start from
-[AGENTS.md](AGENTS.md).
+[AGENTS.md](AGENTS.md). To report a security problem, follow
+[SECURITY.md](SECURITY.md) rather than opening a public issue.
 
 Install dependencies with `pnpm install`. Then:
 

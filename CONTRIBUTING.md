@@ -76,8 +76,29 @@ required** job passes only when both pass. Each run:
 4. builds `plugin.zip` and validates it (`pnpm run pack`, `pnpm release:check`);
 5. audits the dependencies (`pnpm audit --audit-level=moderate`).
 
-In the pull request description, say what you verified and how. Say plainly
-what has not been tested in Typora.
+The pull request template repeats the checklist above. In the description,
+say what you verified and how. Say plainly what has not been tested in Typora.
+
+## Dependencies
+
+Dependabot proposes updates to the pinned GitHub Actions once a week, in one
+pull request. It does not update npm packages, because a lockfile change also
+changes the preview page's fingerprint. To update npm packages by hand:
+
+1. Run `pnpm update` for the packages you mean to change, or `pnpm audit` to
+   find advisories.
+2. Run `pnpm prototype:build`, because the preview page records the lockfile's
+   fingerprint.
+3. Run the tests, the typecheck, `pnpm run pack`, `pnpm release:check` and
+   `pnpm audit --audit-level=moderate`.
+4. A new package that ends up in `main.js` needs its license in
+   `THIRD-PARTY-NOTICES.md`.
+
+## Issues and security reports
+
+Bug reports and feature requests use the issue forms in
+`.github/ISSUE_TEMPLATE/`. Security problems follow [SECURITY.md](SECURITY.md)
+and never go in a public issue.
 
 ## Native testing
 
