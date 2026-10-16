@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: User guide and FAQ
+    url: https://github.com/prisant-labs/typora-plugin-favorite-folders-files/blob/main/docs/USER-GUIDE.md#faq
+    about: Answers to common questions about Favorites, Recent and Browse.
+  - name: Report a security problem
+    url: https://github.com/prisant-labs/typora-plugin-favorite-folders-files/blob/main/SECURITY.md
+    about: Please don't describe a security problem in a public issue.

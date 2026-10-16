@@ -1,3 +1,4 @@
+import type { PanelTab } from './browse-store'
 import type { FavoritesPreferences, FavoritesState } from './model'
 import { icon } from './panel'
 import { FavoritesSettingsPreview } from './settings-preview'
@@ -17,7 +18,10 @@ export interface SettingsUiOptions extends SettingsMetadata {
   update?: { version: string; open(): void }
   /** The automatic update check. Stored apart from the Favorites preferences. */
   updates?: { enabled: boolean; setEnabled(enabled: boolean): void | Promise<unknown> }
+  /** The panel's tab order. Saved in Browse's record, apart from the Favorites preferences. */
+  tabs?: { order: readonly PanelTab[]; writable: boolean; setOrder(order: PanelTab[]): void | Promise<unknown> }
 }
+const TAB_NAMES: Record<PanelTab, string> = { favorites: 'Favorites', recent: 'Recent', browse: 'Browse' }
 
 function safeLink(value?: string): string | undefined {
   if (!value) return undefined
@@ -63,6 +67,52 @@ function updateSetting(updates: NonNullable<SettingsUiOptions['updates']>, isDis
   })
   label.append(text, box)
   return label
+}
+
+/**
+ * The tab order: each tab with Move up and Move down. A move saves the whole order. This list never
+ * changes itself: the host draws the page again from Browse's record, which also undoes a failed save.
+ */
+function tabOrderSetting(tabs: NonNullable<SettingsUiOptions['tabs']>, isDisposed: () => boolean, status: HTMLElement): HTMLElement {
+  const row = document.createElement('div'); row.className = 'qa-setting-row'; row.dataset.tabOrder = ''
+  row.setAttribute('role', 'group'); row.setAttribute('aria-label', 'Tab order')
+  const text = document.createElement('span'); text.className = 'qa-settings__setting-info'
+  const name = document.createElement('span'); name.className = 'qa-settings__setting-name'; name.textContent = 'Tab order'
+  const detail = document.createElement('span'); detail.className = 'qa-settings__setting-description'
+  detail.textContent = 'The order of the tabs in the panel, and of the sections in the Stacked layout.'
+  text.append(name, detail)
+  const list = document.createElement('ol'); list.className = 'qa-settings__order'
+  let saving = false
+  tabs.order.forEach((tab, index) => {
+    const item = document.createElement('li'); item.className = 'qa-settings__order-item'
+    const label = document.createElement('span'); label.className = 'qa-settings__order-name'; label.textContent = TAB_NAMES[tab]
+    item.append(label)
+    for (const [direction, delta] of [['up', -1], ['down', 1]] as const) {
+      const action = `Move ${direction}: ${TAB_NAMES[tab]}`
+      const move = document.createElement('button'); move.type = 'button'; move.className = 'qa-settings__order-move'
+      move.title = action; move.setAttribute('aria-label', action); move.append(icon(direction))
+      move.dataset.settingKey = `tabOrder:${tab}:${direction}`
+      // A move to the end of the list disables this button; focus then goes to the same tab's other button.
+      move.dataset.settingFallback = `tabOrder:${tab}:${direction === 'up' ? 'down' : 'up'}`
+      move.disabled = !tabs.writable || index + delta < 0 || index + delta >= tabs.order.length
+      move.addEventListener('click', () => {
+        if (isDisposed() || move.disabled || saving) return
+        const order = [...tabs.order]; [order[index], order[index + delta]] = [order[index + delta], order[index]]
+        saving = true; status.hidden = true
+        const fail = (error: unknown) => {
+          if (isDisposed()) return
+          status.textContent = error instanceof Error ? error.message : 'The setting could not be saved.'
+          status.hidden = false
+        }
+        const complete = () => { saving = false }
+        try { Promise.resolve(tabs.setOrder(order)).catch(fail).finally(complete) } catch (error) { fail(error); complete() }
+      })
+      item.append(move)
+    }
+    list.append(item)
+  })
+  row.append(text, list)
+  return row
 }
 
 /** Shared preference controls for the registered Core settings tab and preview. */
@@ -118,7 +168,7 @@ export function renderSettings(container: HTMLElement, state: FavoritesState, on
     const name = document.createElement('h3'); name.textContent = title; section.append(name); controls.append(section); return [title, section]
   }))
   const fields = [
-    ['layout', 'Layout', 'Tabs switch collections. Stacked shows both together.', [['tabs', 'Tabs'], ['stacked', 'Stacked']]],
+    ['layout', 'Layout', 'Tabs switch collections. Stacked shows them all together.', [['tabs', 'Tabs'], ['stacked', 'Stacked']]],
     ['groupView', 'Group view', 'Expand groups in an outline or select one with a filter.', [['outline', 'Outline'], ['filter', 'Filter']]],
     ['groupSort', 'Group order', 'Custom uses the order saved in Manage groups.', [['custom', 'Custom'], ['az', 'A–Z'], ['recent', 'Recently opened']]],
     ['itemSort', 'Item order', 'Custom uses the order saved with Arrange Favorites.', [['custom', 'Custom'], ['az', 'A–Z'], ['recent', 'Recently opened']]],
@@ -164,14 +214,15 @@ export function renderSettings(container: HTMLElement, state: FavoritesState, on
   capability.textContent = options.recentAvailable ? 'Recently opened ordering is available: every entry in Typora\'s Recent list has a date.'
     : 'Recently opened ordering needs a date on every entry in Typora\'s Recent list. While it is unavailable, Favorites keeps your Custom order.'
   sections.Recent.append(recentHelp, capability)
+  if (options.tabs) sections.Display.append(tabOrderSetting(options.tabs, () => disposed, status))
   if (options.updates) sections.Updates.append(updateSetting(options.updates, () => disposed, status))
-  let preview: FavoritesSettingsPreview | undefined = new FavoritesSettingsPreview(state.preferences)
+  let preview: FavoritesSettingsPreview | undefined = new FavoritesSettingsPreview(state.preferences, options.tabs?.order)
   layout.append(controls, preview.element); root.append(masthead, help, status, layout); container.replaceChildren(root)
   // Core can hide/reopen its modal without calling the tab's onhide/onshow.
   const visibility = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(() => {
     if (disposed) return
     if (!root.getClientRects().length) { preview?.dispose(); preview = undefined }
-    else if (!preview) { preview = new FavoritesSettingsPreview(state.preferences); layout.append(preview.element) }
+    else if (!preview) { preview = new FavoritesSettingsPreview(state.preferences, options.tabs?.order); layout.append(preview.element) }
   })
   visibility?.observe(root)
   return () => { disposed = true; visibility?.disconnect(); preview?.dispose(); root.remove() }

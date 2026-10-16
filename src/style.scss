@@ -155,6 +155,25 @@
   .qa-current .qa-row-actions { background: var(--qa-current) !important; }
   .qa-row:hover .qa-name, .qa-row:focus-within .qa-name, .qa-has-menu .qa-name { padding-right: 78px; }
   .qa-has-menu .qa-row-actions { opacity: 1; pointer-events: auto; }
+  // Browse: one line per row, indented by depth. Top rows also say where they are.
+  .qa-tree-row { min-height: 30px; }
+  .qa-tree-open { min-height: 30px; align-items: center; gap: 5px; padding: 4px 5px 4px calc(3px + var(--qa-depth, 0) * 15px); }
+  .qa-tree-open > svg { margin-top: 0; width: 15px; }
+  .qa-tree-open > svg:first-child { width: 11px; height: 11px; color: var(--qa-muted); }
+  .qa-tree-open[aria-expanded=false] > svg:first-child { transform: rotate(-90deg); }
+  .qa-tree-spacer { flex: none; width: 11px; }
+  .qa-tree-row .qa-name { font-weight: 400; }
+  .qa-tree-top .qa-tree-open { min-height: 36px; }
+  .qa-tree-top .qa-name { font-weight: 600; }
+  .qa-tree-row .qa-row-actions { top: 50%; transform: translateY(-50%); }
+  .qa-tree-note { margin: 0; padding: 5px 5px 7px calc(19px + var(--qa-depth, 1) * 15px); font-size: 11px; color: var(--qa-muted); }
+  .qa-tree-error { color: var(--text-error, #925b23); }
+  .qa-browse-bar { display: flex; justify-content: flex-end; margin: -4px 0 4px; }
+  .qa-browse-bar button { font-size: 11px; padding: 4px 2px; color: var(--qa-muted); }
+  .qa-root-copy { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+  .qa-root-path { font-size: 10px; color: var(--qa-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qa-add-root { display: block; margin-top: 12px; padding: 7px 9px; border: 1px solid var(--qa-line); font-size: 11px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qa-check { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12px; cursor: pointer; }
   .qa-recent-filters { display: flex; gap: 3px; margin-bottom: 8px; }
   .qa-recent-filters button { flex: 1; font-size: 11px; color: var(--qa-muted); }
   .qa-recent-filters [aria-pressed=true] { color: var(--qa-text); font-weight: 600; border-color: var(--qa-accent); background: var(--qa-current); background: color-mix(in srgb, var(--qa-accent) 14%, transparent); }
@@ -198,7 +217,7 @@
   .qa-edit-group svg, .qa-reorder-item svg { width: 14px; }
   .qa-drag-handle { touch-action: none; cursor: grab; }
   // The grip's dots are stroke caps, so their size is the stroke width.
-  .qa-edit-group .qa-drag-handle svg { width: 16px; stroke-width: 3.4; }
+  .qa-edit-group .qa-drag-handle svg, .qa-root-item .qa-drag-handle svg { width: 16px; stroke-width: 3.4; }
   .qa-page-section { margin: 18px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--qa-line); color: var(--qa-text); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
   .qa-page-section:first-child { margin-top: 0; }
   .qa-fixed { width: 24px; text-align: center; color: var(--qa-muted); flex: none; }

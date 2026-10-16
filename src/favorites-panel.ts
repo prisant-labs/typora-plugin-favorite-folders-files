@@ -1,9 +1,12 @@
 import {
-  ALL_GROUPS_ID, UNGROUPED_GROUP_ID, applyFavoritesOperation, locationId,
+  ALL_GROUPS_ID, UNGROUPED_GROUP_ID, applyFavoritesOperation, locationId, normalizePath,
   selectFavoriteGroups, selectFavoritesInGroup,
   type Favorite, type FavoritesOperation, type FavoritesPreferences, type FavoritesState,
   type LocationKind, type Platform,
 } from './model'
+import { browseRows, browseTops, folderName, type BrowseRow } from './browse-model'
+import type { BrowseRootsChange, BrowseSnapshot } from './browse-runtime'
+import type { PanelTab } from './browse-store'
 import { createFavoritesDraft, stageFavoritesDraft, type FavoritesDraft } from './editor-state'
 import { historyActivity, selectRecent, type NativeHistorySnapshot, type RecentLocation } from './native-history'
 import { icon } from './panel'
@@ -20,6 +23,16 @@ export interface FavoritesPanelSnapshot {
   unavailable?: ReadonlySet<string>
   /** A newer Favorites that Core's Marketplace offers. Absent in synthetic previews. */
   update?: { version: string }
+  /** Browse's roots and folder listings. Without it the panel has no Browse tab. */
+  browse?: BrowseSnapshot
+}
+export interface BrowsePanelActions {
+  toggle(key: string, path?: string): Promise<void>
+  setActive(active: boolean): Promise<void>
+  setCollapsed(collapsed: boolean): Promise<void>
+  addRoot(path: string): Promise<void>
+  removeRoot(path: string): Promise<void>
+  saveRoots(change: BrowseRootsChange): Promise<void>
 }
 export interface FavoritesPanelActions {
   change(operation: FavoritesOperation): void | Promise<unknown>
@@ -29,17 +42,24 @@ export interface FavoritesPanelActions {
   settings(): void | Promise<unknown>
   /** Opens the update confirmation. */
   update?(): void
+  browse?: BrowsePanelActions
 }
 const RECENT_SOURCE = 'Typora\'s own Recent list (File → Open Recent). Favorites reads it while this panel is open and never saves or changes it.'
-type EditorKind = 'add' | 'move' | 'groups' | 'arrange'
+type EditorKind = 'add' | 'move' | 'groups' | 'arrange' | 'roots'
+type Tab = PanelTab
 type Choice = { id: string; kind: LocationKind; path: string }
+/** Where the Add Favorite page's location came from, for its label. */
+type ChoiceSource = 'current' | 'recent' | 'browse'
+const CHOICE_LABELS: Record<ChoiceSource, string> = { current: 'Current', recent: 'Recent', browse: 'Selected' }
 interface Editor {
   kind: EditorKind
   draft: FavoritesDraft
   origin: string
   selected?: Choice
   choices: Choice[]
-  recentChoice: boolean
+  source: ChoiceSource
+  /** The Manage Browse roots page's unsaved roots. */
+  roots?: { paths: string[]; home: boolean; drives: boolean; input: string }
   groupId: string
   favorite?: Favorite
   newName: string
@@ -68,7 +88,7 @@ function btn(label: string, key: string, action: (event: MouseEvent) => void, gl
 export class FavoritesPanelRenderer {
   private snapshot?: FavoritesPanelSnapshot
   private query = ''
-  private popup?: { kind: 'view' | 'groups' | 'items' | 'favorite' | 'group'; id?: string; trigger: string }
+  private popup?: { kind: 'view' | 'groups' | 'items' | 'favorite' | 'group' | 'browse'; id?: string; trigger: string }
   private editor?: Editor
   private undo?: Favorite
   private status = ''
@@ -77,10 +97,11 @@ export class FavoritesPanelRenderer {
   private disposed = false
   private mainScroll = 0
   private focusNext?: string
-  private drag?: { id: string; target?: string; after: boolean; pointer: number; x: number; y: number; valid: boolean }
+  /** A grip being dragged on Manage groups or Manage Browse roots; `id` is a group ID or a root's location ID. */
+  private drag?: { list: 'groups' | 'roots'; id: string; target?: string; after: boolean; pointer: number; x: number; y: number; valid: boolean }
   private dragFrame?: number
   private readonly keyHandler = (event: KeyboardEvent) => {
-    if (this.popup && ['favorite', 'group'].includes(this.popup.kind) && document.activeElement?.closest('.qa-menu') && this.container.contains(document.activeElement) && ['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
+    if (this.popup && ['favorite', 'group', 'browse'].includes(this.popup.kind) && document.activeElement?.closest('.qa-menu') && this.container.contains(document.activeElement) && ['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
       const items = [...this.container.querySelectorAll<HTMLButtonElement>('.qa-menu button:not(:disabled)')]
       if (!items.length) return
       event.preventDefault(); const current = items.indexOf(document.activeElement as HTMLButtonElement)
@@ -132,6 +153,17 @@ export class FavoritesPanelRenderer {
     void this.run(() => this.actions.change({ type: 'favorites:preferences', patch }))
   }
   private state() { return this.snapshot!.state }
+  /** The tabs in the user's order, which Browse's record keeps. Without Browse, the usual order. */
+  private tabs(): Tab[] { return this.snapshot!.browse && this.actions.browse ? [...this.snapshot!.browse.record.order] : ['favorites', 'recent'] }
+  /** Browse's own record says when it is selected, so saved Favorites never hold a tab older windows reject. */
+  private activeTab(): Tab { return this.tabs().includes('browse') && this.snapshot!.browse!.record.active ? 'browse' : this.state().preferences.activeTab }
+  /** The only way the panel changes tabs: every tab change must also clear Browse's selection. */
+  private selectTab(tab: Tab) {
+    const browse = this.actions.browse, active = this.snapshot!.browse?.record.active
+    if (tab === 'browse') { if (browse && !active) { this.popup = undefined; void this.run(() => browse.setActive(true)) }; return }
+    if (browse && active) { this.popup = undefined; void this.run(() => browse.setActive(false)) }
+    if (this.state().preferences.activeTab !== tab) this.change({ activeTab: tab })
+  }
   private projected() {
     return this.editor!.draft.operations.reduce((state, operation) => applyFavoritesOperation(state, operation, this.snapshot!.platform), this.editor!.draft.base)
   }
@@ -193,28 +225,30 @@ export class FavoritesPanelRenderer {
     searchWrap.append(icon('search'), search)
     const controls = el('div', 'qa-controls'); const toolbar = el('div', 'qa-toolbar')
     const views = this.popupButton('Views', 'view', 'view'); views.prepend(icon('views')); toolbar.append(views)
-    const showSort = p.layout === 'stacked' || p.activeTab === 'favorites' || Boolean(this.query)
+    const tabs = this.tabs(), active = this.activeTab()
+    const showSort = p.layout === 'stacked' || active === 'favorites' || Boolean(this.query)
     if (showSort) {
       const divider = el('span', 'qa-toolbar-divider'); divider.setAttribute('aria-hidden', 'true')
       toolbar.append(this.popupButton(`Groups: ${this.sortName(p.groupSort)}`, 'sort-groups', 'groups'), divider, this.popupButton(`Items: ${this.sortName(p.itemSort)}`, 'sort-items', 'items'))
-    } else toolbar.append(this.recentOrder())
+    } else toolbar.append(active === 'browse' ? this.manageRoots('browse-roots') : this.recentOrder())
     controls.append(toolbar)
     if (this.popup && ['view', 'groups', 'items'].includes(this.popup.kind)) controls.append(this.options())
     const navigation = el('div', 'qa-tabs'); navigation.setAttribute('role', 'tablist'); navigation.setAttribute('aria-label', 'Collections')
-    if (p.layout === 'tabs' && !this.query) for (const tab of ['favorites', 'recent'] as const) {
-      const node = btn(tab === 'favorites' ? 'Favorites' : 'Recent', `tab-${tab}`, () => this.change({ activeTab: tab }))
-      node.setAttribute('role', 'tab'); node.setAttribute('aria-selected', String(p.activeTab === tab)); node.tabIndex = p.activeTab === tab ? 0 : -1
+    const names: Record<Tab, string> = { favorites: 'Favorites', recent: 'Recent', browse: 'Browse' }
+    if (p.layout === 'tabs' && !this.query) for (const [index, tab] of tabs.entries()) {
+      const node = btn(names[tab], `tab-${tab}`, () => this.selectTab(tab))
+      node.setAttribute('role', 'tab'); node.setAttribute('aria-selected', String(active === tab)); node.tabIndex = active === tab ? 0 : -1
       node.addEventListener('keydown', event => {
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
-        event.preventDefault(); const next = event.key === 'Home' ? 'favorites' : event.key === 'End' ? 'recent' : tab === 'favorites' ? 'recent' : 'favorites'
-        this.focusNext = `tab-${next}`; this.change({ activeTab: next })
+        event.preventDefault(); const next = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[tabs.length - 1] : tabs[(index + (event.key === 'ArrowLeft' ? -1 : 1) + tabs.length) % tabs.length]
+        this.focusNext = `tab-${next}`; this.selectTab(next)
       }); navigation.append(node)
     }
     const lists = el('div', 'qa-lists')
     if (this.query.trim()) this.renderSearch(lists)
     else {
-      if (p.layout === 'stacked' || p.activeTab === 'favorites') this.renderFavorites(lists)
-      if (p.layout === 'stacked' || p.activeTab === 'recent') this.renderRecent(lists)
+      const sections: Record<Tab, (lists: HTMLElement) => void> = { favorites: lists => this.renderFavorites(lists), recent: lists => this.renderRecent(lists), browse: lists => this.renderBrowse(lists) }
+      for (const tab of tabs) if (p.layout === 'stacked' || active === tab) sections[tab](lists)
     }
     const footer = el('div', 'qa-footer', `${state.favorites.length} Favorites · ${state.groups.length + 1} groups`)
     return [searchWrap, controls, navigation, lists, footer]
@@ -323,6 +357,97 @@ export class FavoritesPanelRenderer {
     for (const row of rows) lists.append(this.row(row, 'recent'))
     if (!rows.length) lists.append(el('p', 'qa-empty', kind === 'file' ? 'No recent Markdown files in Typora\'s Recent list.' : 'No recent folders in Typora\'s Recent list.'))
   }
+  private manageRoots(key: string) {
+    const node = btn('Manage roots', key, () => this.openEditor('roots', key)); node.disabled = !this.snapshot!.browse?.writable; return node
+  }
+  private fileManager() { const platform = this.snapshot!.platform; return platform === 'darwin' ? 'Finder' : platform === 'win32' ? 'Explorer' : 'file manager' }
+  private renderBrowse(lists: HTMLElement) {
+    const browse = this.snapshot!.browse!, actions = this.actions.browse!, platform = this.snapshot!.platform
+    if (this.state().preferences.layout === 'stacked') {
+      // Browse keeps this in its own record: saved Favorites accept only their own section keys.
+      const collapsed = browse.record.collapsed
+      const header = btn('Browse', 'collapse-browse', () => { void this.run(() => actions.setCollapsed(!collapsed)) })
+      header.className = 'qa-section-toggle'; header.prepend(icon('chevron')); header.setAttribute('aria-expanded', String(!collapsed)); lists.append(header)
+      if (collapsed) return
+      const bar = el('div', 'qa-browse-bar'); bar.append(this.manageRoots('browse-roots-stacked')); lists.append(bar)
+    }
+    if (!browse.available) { lists.append(el('p', 'qa-empty', 'Browsing folders isn\'t available in this Typora window.')); return }
+    const tops = browseTops(browse.record, browse.home, platform)
+    if (!tops.length) { lists.append(el('p', 'qa-empty', 'Add a root folder to browse from it.')); return }
+    const { rows } = browseRows(tops, browse.folders, new Set(browse.record.expanded), platform)
+    const tree = el('div', 'qa-tree'), items = rows.filter(row => row.type !== 'note')
+    for (const row of rows) tree.append(this.browseRow(row, items))
+    lists.append(tree)
+  }
+  private browseRow(row: BrowseRow, items: BrowseRow[]) {
+    const depth = String(row.depth)
+    if (row.type === 'note') { const note = el('p', `qa-tree-note${row.note === 'error' ? ' qa-tree-error' : ''}`, row.name); note.dataset.depth = depth; note.style.setProperty('--qa-depth', depth); return note }
+    const { platform, current } = this.snapshot!, browse = this.actions.browse!, path = row.path
+    const kind: LocationKind = row.type === 'file' ? 'file' : 'folder', key = `browse:${row.id}`
+    let id: string | undefined, isCurrent = false
+    try { if (path) { id = locationId(kind, path, platform); isCurrent = Boolean(current[kind] && locationId(kind, current[kind]!, platform) === id) } } catch { /* Not a navigation target. */ }
+    const wrapper = el('div', 'qa-row-wrapper'), line = el('div', `qa-row qa-tree-row${row.depth === 0 ? ' qa-tree-top' : ''}`)
+    line.classList.toggle('qa-current', isCurrent)
+    const newWindow = platform === 'win32'
+    const main = btn(row.type === 'file' ? `Open ${row.name}` : `${row.expanded ? 'Collapse' : 'Expand'} ${row.name}`, key, event => {
+      if (row.type === 'file') void this.run(() => this.actions.open('file', path!, { newWindow: newWindow && (event.ctrlKey || event.metaKey) }))
+      else void this.run(() => browse.toggle(row.key, path))
+    })
+    main.className = 'qa-open qa-tree-open'; main.dataset.depth = depth; main.style.setProperty('--qa-depth', depth)
+    if (row.type === 'file') { if (isCurrent) main.setAttribute('aria-current', 'location') } else main.setAttribute('aria-expanded', String(Boolean(row.expanded)))
+    main.title = !path ? row.name : row.type === 'file' && newWindow ? `${path}\nClick to open in this window · Ctrl+click for a new window` : path
+    const name = el('span', 'qa-name', row.name), labels = el('span', 'qa-row-label')
+    if (isCurrent) name.append(el('span', 'qa-current-label', ' Current'))
+    labels.append(name)
+    // Top folders say where they are, unless that is just the file system root; deeper rows show it by their place in the tree.
+    const where = path && row.depth === 0 ? parentOf(path) : '/'
+    if (where !== '/' && where !== row.name) { const meta = el('span', 'qa-meta'); meta.append(el('span', 'qa-path', where)); labels.append(meta) }
+    const glyph = row.type === 'home' ? 'home' : row.type === 'drives' || row.type === 'drive' ? 'drive' : kind
+    main.replaceChildren(row.type === 'file' ? el('span', 'qa-tree-spacer') : icon('chevron'), icon(glyph), labels)
+    main.addEventListener('keydown', event => this.treeKey(event, row, items))
+    line.append(main); wrapper.append(line)
+    if (!path) return wrapper
+    const actions = el('div', 'qa-row-actions')
+    const saved = this.state().favorites.find(favorite => favorite.id === id)
+    const star = btn(`${saved ? 'Remove Favorite' : 'Add Favorite'}: ${row.name}`, `star:${key}`, () => {
+      if (saved) void this.removeFavorite(saved)
+      else if (id) this.openEditor('add', `star:${key}`, undefined, undefined, { id, kind, path }, 'browse')
+    }, 'star'); star.disabled = !this.snapshot!.writable || !id; star.setAttribute('aria-pressed', String(Boolean(saved)))
+    actions.append(star, btn(`${kind === 'folder' ? 'Open in' : 'Reveal in'} ${this.fileManager()}: ${row.name}`, `reveal:${key}`, () => { void this.run(() => this.actions.reveal(kind, path)) }, 'reveal'))
+    if (kind === 'folder') {
+      const menuKey = `more:${key}`, open = this.popup?.kind === 'browse' && this.popup.id === row.id
+      const more = btn(`More: ${row.name}`, menuKey, () => {
+        this.popup = open ? undefined : { kind: 'browse', id: row.id, trigger: menuKey }; this.render(); this.container.querySelector<HTMLButtonElement>('.qa-menu button')?.focus()
+      }, 'more'); more.setAttribute('aria-haspopup', 'menu'); more.setAttribute('aria-expanded', String(open)); actions.append(more)
+      if (open) {
+        line.classList.add('qa-has-menu'); const menu = el('div', 'qa-menu qa-item-menu'); menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', `Actions for ${row.name}`)
+        const record = this.snapshot!.browse!.record, isRoot = record.roots.some(root => { try { return locationId('folder', root, platform) === id } catch { return false } })
+        const typora = btn('Open in Typora', 'browse-open-folder', () => { this.popup = undefined; void this.run(() => this.actions.open('folder', path)) })
+        typora.title = 'Make this the folder Typora has open, as its own Files list shows it'
+        const root = isRoot
+          ? btn('Remove from Browse roots', 'browse-remove-root', () => { this.popup = undefined; void this.run(async () => { await browse.removeRoot(path); this.undo = undefined; this.status = `Removed ${folderName(path)} from Browse roots.` }) })
+          : btn('Add to Browse roots', 'browse-add-root', () => { this.popup = undefined; void this.run(async () => { await browse.addRoot(path); this.undo = undefined; this.status = `Added ${folderName(path)} to Browse roots.` }) })
+        root.disabled = !this.snapshot!.browse!.writable
+        for (const item of [typora, root]) { item.setAttribute('role', 'menuitem'); item.tabIndex = -1 }
+        menu.append(typora, root); wrapper.append(menu)
+      }
+    }
+    line.append(actions)
+    return wrapper
+  }
+  /** Up and Down move between rows; Right expands or steps in; Left collapses or steps out. */
+  private treeKey(event: KeyboardEvent, row: BrowseRow, items: BrowseRow[]) {
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return
+    event.preventDefault()
+    const index = items.findIndex(item => item.id === row.id), folder = row.type !== 'file', next = items[index + 1]
+    const move = (target?: BrowseRow) => { if (target) this.focus(`browse:${target.id}`) }
+    const toggle = () => { void this.run(() => this.actions.browse!.toggle(row.key, row.path)) }
+    if (event.key === 'ArrowDown') move(next)
+    else if (event.key === 'ArrowUp') move(items[index - 1])
+    else if (event.key === 'ArrowRight') { if (folder && !row.expanded) toggle(); else if (folder && next && next.depth > row.depth) move(next) }
+    else if (folder && row.expanded) toggle()
+    else move(items.slice(0, index).reverse().find(item => item.depth < row.depth))
+  }
   private renderSearch(lists: HTMLElement) {
     const state = this.state(), query = this.query.trim().toLocaleLowerCase(); const seen = new Set<string>()
     const matches = (row: Choice, groupName = '') => `${nameOf(row.path)} ${row.path} ${groupName}`.toLocaleLowerCase().includes(query)
@@ -363,8 +488,7 @@ export class FavoritesPanelRenderer {
       if (saved) void this.removeFavorite(saved)
       else this.openEditor('add', `star:${rowKey}`, undefined, undefined, location)
     }, 'star'); star.disabled = !this.snapshot!.writable; star.setAttribute('aria-pressed', String(Boolean(saved)))
-    const manager = this.snapshot!.platform === 'darwin' ? 'Finder' : this.snapshot!.platform === 'win32' ? 'Explorer' : 'file manager'
-    actions.append(star, btn(`${location.kind === 'folder' ? 'Open in' : 'Reveal in'} ${manager}: ${name}`, `reveal:${rowKey}`, () => { void this.run(() => this.actions.reveal(location.kind, location.path)) }, 'reveal'))
+    actions.append(star, btn(`${location.kind === 'folder' ? 'Open in' : 'Reveal in'} ${this.fileManager()}: ${name}`, `reveal:${rowKey}`, () => { void this.run(() => this.actions.reveal(location.kind, location.path)) }, 'reveal'))
     if (saved) {
       const key = `more:${rowKey}`; const more = btn(`More: ${name}`, key, () => {
         this.popup = this.popup?.kind === 'favorite' && this.popup.id === rowKey ? undefined : { kind: 'favorite', id: rowKey, trigger: key }; this.render(); this.container.querySelector<HTMLButtonElement>('.qa-menu button')?.focus()
@@ -392,21 +516,33 @@ export class FavoritesPanelRenderer {
       this.undo = undefined; this.status = exists ? 'Favorite restored.' : 'Favorite restored to Ungrouped because its former group was deleted.'
     })
   }
-  private openEditor(kind: EditorKind, origin: string, groupId = UNGROUPED_GROUP_ID, favorite?: Favorite, choice?: Choice) {
-    if (!this.snapshot!.writable) return
+  private openEditor(kind: EditorKind, origin: string, groupId = UNGROUPED_GROUP_ID, favorite?: Favorite, choice?: Choice, source: ChoiceSource = 'recent') {
+    const browse = this.snapshot!.browse
+    if (kind === 'roots' ? !browse?.writable : !this.snapshot!.writable) return
     this.mainScroll = this.container.querySelector('.qa-lists')?.scrollTop ?? 0
     const choices: Choice[] = []
     for (const type of ['file', 'folder'] as const) {
       const path = this.snapshot!.current[type]
       if (path) try { choices.push({ id: locationId(type, path, this.snapshot!.platform), kind: type, path }) } catch { /* Not an eligible saved path. */ }
     }
-    this.editor = { kind, origin, draft: createFavoritesDraft(this.state()), choices: choice ? [choice] : choices, recentChoice: Boolean(choice), selected: choice, groupId, favorite, newName: '', renameText: '', saving: false }
+    this.editor = { kind, origin, draft: createFavoritesDraft(this.state()), choices: choice ? [choice] : choices, source: choice ? source : 'current', selected: choice, groupId, favorite, newName: '', renameText: '', saving: false }
+    if (kind === 'roots' && browse) this.editor.roots = { paths: [...browse.record.roots], home: browse.record.home, drives: browse.record.drives, input: '' }
     this.popup = undefined; this.focusNext = 'editor-back'; this.render()
     const body = this.container.querySelector('.qa-page-body'); if (body) body.scrollTop = 0
   }
   private dirty() {
     const e = this.editor!
+    if (e.roots) {
+      const record = this.snapshot!.browse!.record
+      return Boolean(e.roots.input) || e.roots.home !== record.home || e.roots.drives !== record.drives || e.roots.paths.join('\n') !== record.roots.join('\n')
+    }
     return e.draft.operations.length > 0 || Boolean(e.selected) || (e.kind === 'move' && e.groupId !== e.favorite?.groupId) || Boolean(e.newName || e.renameId)
+  }
+  private editorWritable() { return this.editor?.kind === 'roots' ? Boolean(this.snapshot!.browse?.writable) : this.snapshot!.writable }
+  /** Typing updates Save and the draft label without a re-render, which would drop an IME composition. */
+  private syncDraftState() {
+    const save = this.container.querySelector<HTMLButtonElement>('[data-key="editor-save"]'); if (save) save.disabled = !this.dirty() || !this.editorWritable()
+    const status = this.container.querySelector('.qa-draft-state'); if (status) status.textContent = this.dirty() ? 'Unsaved changes' : 'No changes yet'
   }
   private leaveEditor(action: () => void) {
     if (!this.editor || this.editor.saving) return
@@ -420,6 +556,7 @@ export class FavoritesPanelRenderer {
     this.leaveEditor(() => {
       this.query = ''; this.editor = undefined; this.focusNext = `more:favorites:${favorite.id}`
       void this.run(async () => {
+        if (this.snapshot!.browse?.record.active) await this.actions.browse?.setActive(false)
         await this.actions.change({ type: 'favorites:preferences', patch: { activeTab: 'favorites', favoritesCollapsed: false, selectedGroup: favorite.groupId, collapsedGroups: this.state().preferences.collapsedGroups.filter(id => id !== favorite.groupId) } })
         this.focusNext = `more:favorites:${favorite.id}`; this.render(); this.focus(`more:favorites:${favorite.id}`)?.scrollIntoView?.({ block: 'nearest' })
       })
@@ -428,7 +565,7 @@ export class FavoritesPanelRenderer {
   private renderEditor(): HTMLElement[] {
     const e = this.editor!, state = this.projected()
     const groupName = e.groupId === UNGROUPED_GROUP_ID ? 'Ungrouped' : state.groups.find(group => group.id === e.groupId)?.name || 'Deleted group'
-    const title = e.kind === 'add' ? 'Add Favorite' : e.kind === 'move' ? 'Move Favorite' : e.kind === 'groups' ? 'Manage groups' : `Arrange Favorites · ${groupName}`
+    const title = e.kind === 'add' ? 'Add Favorite' : e.kind === 'move' ? 'Move Favorite' : e.kind === 'groups' ? 'Manage groups' : e.kind === 'roots' ? 'Manage Browse roots' : `Arrange Favorites · ${groupName}`
     const page = el('section', 'qa-editor'); const heading = el('div', 'qa-page-heading')
     const back = btn('Back', 'editor-back', () => this.leaveEditor(() => this.closeEditor()), 'back'); back.disabled = e.saving
     heading.append(back, el('h3', '', title)); page.append(heading)
@@ -440,6 +577,7 @@ export class FavoritesPanelRenderer {
     if (e.kind === 'add') this.addPage(body, e)
     else if (e.kind === 'move') this.movePage(body, e, state)
     else if (e.kind === 'groups') this.groupsPage(body, e, state)
+    else if (e.kind === 'roots') this.rootsPage(body, e)
     else this.arrangePage(body, e, state)
     if (e.error) { const error = el('p', 'qa-page-error', e.error); error.setAttribute('role', 'alert'); body.append(error) }
     const footer = el('div', 'qa-page-footer'); const buttons = el('div', 'qa-page-buttons')
@@ -449,7 +587,7 @@ export class FavoritesPanelRenderer {
       footer.append(el('span', 'qa-draft-state', e.saving ? 'Saving…' : this.dirty() ? 'Unsaved changes' : 'No changes yet'))
       const cancel = btn('Cancel', 'editor-cancel', () => this.leaveEditor(() => this.closeEditor()))
       const save = btn('Save', 'editor-save', () => { void this.saveEditor() }); save.className = 'qa-primary'
-      cancel.disabled = e.saving; save.disabled = e.saving || Boolean(e.pending) || !this.dirty() || !this.snapshot!.writable
+      cancel.disabled = e.saving; save.disabled = e.saving || Boolean(e.pending) || !this.dirty() || !this.editorWritable()
       buttons.append(cancel, save)
     }
     footer.append(buttons); page.append(body, footer)
@@ -462,7 +600,7 @@ export class FavoritesPanelRenderer {
     if (!e.choices.length) body.append(el('p', 'qa-empty', 'No saved Markdown document or working folder is currently available.'))
     for (const choice of e.choices) {
       const saved = this.state().favorites.find(row => row.id === choice.id)
-      const label = `${e.recentChoice ? 'Recent' : 'Current'} ${choice.kind === 'file' ? 'document' : 'folder'}: ${nameOf(choice.path)}`
+      const label = `${CHOICE_LABELS[e.source]} ${choice.kind === 'file' ? 'document' : 'folder'}: ${nameOf(choice.path)}`
       const card = el(saved ? 'div' : 'label', 'qa-location-choice'); card.append(icon(choice.kind)); const copy = el('span', 'qa-location-copy'); copy.append(el('strong', '', label), el('small', '', choice.path))
       card.append(copy)
       if (saved) {
@@ -501,7 +639,7 @@ export class FavoritesPanelRenderer {
       const row = el('div', 'qa-edit-group'); row.dataset.groupId = group.id
       if (!group.ungrouped) {
         const grip = btn(`Drag group: ${group.name}`, `drag:${group.id}`, () => {}, 'grip'); grip.classList.add('qa-drag-handle'); grip.disabled = !custom
-        grip.addEventListener('pointerdown', event => { if (!custom || e.saving) return; event.preventDefault(); this.drag = { id: group.id, after: false, pointer: event.pointerId, x: event.clientX, y: event.clientY, valid: false }; row.classList.add('qa-dragging') })
+        grip.addEventListener('pointerdown', event => { if (!custom || e.saving) return; event.preventDefault(); this.drag = { list: 'groups', id: group.id, after: false, pointer: event.pointerId, x: event.clientX, y: event.clientY, valid: false }; row.classList.add('qa-dragging') })
         row.append(grip)
       } else row.append(el('span', 'qa-fixed', '·'))
       row.append(el('span', 'qa-edit-name', group.name), el('span', 'qa-quiet', String(state.itemOrder[group.id].length)))
@@ -525,7 +663,7 @@ export class FavoritesPanelRenderer {
     }
     body.append(el('h4', 'qa-page-section', 'New group'))
     const form = el('div', 'qa-new-group'), label = el('label'), input = el('input'); input.placeholder = 'Group name'; input.value = e.newName; input.maxLength = 60; input.dataset.key = 'new-group-name'; input.setAttribute('aria-label', 'New group name')
-    input.addEventListener('input', () => { e.newName = input.value; const save = this.container.querySelector<HTMLButtonElement>('[data-key="editor-save"]'); if (save) save.disabled = !this.dirty() || !this.snapshot!.writable; const status = this.container.querySelector('.qa-draft-state'); if (status) status.textContent = this.dirty() ? 'Unsaved changes' : 'No changes yet' })
+    input.addEventListener('input', () => { e.newName = input.value; this.syncDraftState() })
     this.preserveComposition(input)
     label.append(input); form.append(label, btn('Add group', 'add-group', () => {
       try { const id = `group-${globalThis.crypto.randomUUID()}`; e.draft = stageFavoritesDraft(e.draft, { type: 'group:create', id, name: e.newName }, this.snapshot!.platform); e.newName = ''; e.error = undefined } catch (error) { e.error = (error as Error).message }; this.render()
@@ -544,8 +682,61 @@ export class FavoritesPanelRenderer {
     }
     if (!order.length) body.append(el('p', 'qa-empty', 'This group has no Favorites yet.'))
   }
+  private rootId(path: string) { try { return locationId('folder', path, this.snapshot!.platform) } catch { return path } }
+  private rootsPage(body: HTMLElement, e: Editor) {
+    const r = e.roots!, { platform, current } = this.snapshot!, browse = this.snapshot!.browse!
+    const id = (path: string) => this.rootId(path)
+    body.append(el('p', 'qa-page-note', 'Browse shows these folders first, in this order. It lists folders and Markdown files only, and never moves, renames or deletes anything.'))
+    body.append(el('h4', 'qa-page-section', 'Root folders'))
+    if (!r.paths.length) body.append(el('p', 'qa-empty', 'No root folders yet.'))
+    else body.append(el('p', 'qa-page-note', 'Drag a grip or use arrows to arrange roots.'))
+    r.paths.forEach((path, index) => {
+      const name = folderName(path), row = el('div', 'qa-reorder-item qa-root-item'), copy = el('span', 'qa-root-copy'); row.title = path; row.dataset.rootId = id(path)
+      const grip = btn(`Drag root: ${name}`, `root-drag:${id(path)}`, () => {}, 'grip'); grip.classList.add('qa-drag-handle')
+      grip.addEventListener('pointerdown', event => { if (e.saving) return; event.preventDefault(); this.drag = { list: 'roots', id: id(path), after: false, pointer: event.pointerId, x: event.clientX, y: event.clientY, valid: false }; row.classList.add('qa-dragging') })
+      copy.append(el('span', 'qa-edit-name', name), el('small', 'qa-root-path', path)); row.append(grip, copy)
+      for (const [direction, delta] of [['up', -1], ['down', 1]] as const) {
+        const move = btn(`Move ${direction}: ${name}`, `root-${direction}:${id(path)}`, () => { const paths = [...r.paths]; [paths[index], paths[index + delta]] = [paths[index + delta], paths[index]]; r.paths = paths; this.render() }, direction)
+        move.disabled = index + delta < 0 || index + delta >= r.paths.length; row.append(move)
+      }
+      row.append(btn(`Remove root: ${name}`, `root-remove:${id(path)}`, () => { r.paths = r.paths.filter((_, position) => position !== index); this.render() }, 'trash'))
+      body.append(row)
+    })
+    const folder = current.folder
+    if (folder && !r.paths.some(path => id(path) === id(folder))) {
+      const add = btn(`Add current folder: ${folderName(folder)}`, 'roots-add-current', () => { r.paths = [...r.paths, folder]; this.render() }); add.className = 'qa-add-root'; body.append(add)
+    }
+    const example = platform === 'win32' ? 'D:\\Notes' : '/Volumes/Notes'
+    const form = el('div', 'qa-new-group'), label = el('label', '', 'Add a folder by its full path'), input = el('input')
+    input.placeholder = example; input.value = r.input; input.dataset.key = 'root-path'; input.setAttribute('aria-label', 'Folder path'); input.spellcheck = false
+    const add = () => {
+      let path: string
+      try { path = normalizePath(r.input.trim(), platform) } catch { e.error = `Enter a full folder path, such as ${example}.`; this.render(); return }
+      if (r.paths.some(root => id(root) === id(path))) { e.error = 'That folder is already a root.'; this.render(); return }
+      r.paths = [...r.paths, path]; r.input = ''; e.error = undefined; this.focusNext = 'root-path'; this.render()
+    }
+    input.addEventListener('input', () => { r.input = input.value; this.syncDraftState() })
+    input.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); add() } })
+    this.preserveComposition(input)
+    label.append(input); form.append(label, btn('Add folder', 'roots-add-path', add)); body.append(form)
+    body.append(el('h4', 'qa-page-section', 'Also show'))
+    for (const [field, text] of [['home', 'Home folder'], ['drives', platform === 'darwin' ? 'Volumes' : 'Drives']] as const) {
+      const wrapper = el('label', 'qa-check'), box = el('input'); box.type = 'checkbox'; box.checked = r[field]; box.dataset.key = `roots-${field}`; box.setAttribute('aria-label', text)
+      box.addEventListener('change', () => { r[field] = box.checked; this.render() }); wrapper.append(box, document.createTextNode(text)); body.append(wrapper)
+    }
+    if (!browse.home) body.append(el('p', 'qa-page-note', 'This Typora window does not say where your home folder is, so Home stays hidden.'))
+  }
   private async saveEditor() {
-    const e = this.editor; if (!e || e.saving || e.pending || !this.snapshot!.writable) return
+    const e = this.editor; if (!e || e.saving || e.pending || !this.editorWritable()) return
+    if (e.roots) {
+      if (e.roots.input.trim()) { e.error = 'Add or clear the folder path before saving.'; this.render(); return }
+      e.saving = true; e.error = undefined; this.render()
+      try {
+        await this.actions.browse!.saveRoots({ roots: e.roots.paths, home: e.roots.home, drives: e.roots.drives })
+        if (!this.disposed && this.editor === e) this.closeEditor()
+      } catch (error) { if (!this.disposed && this.editor === e) { e.saving = false; e.error = (error as Error).message; this.focusNext = 'editor-save'; this.render() } }
+      return
+    }
     if (e.newName || e.renameId) { e.error = 'Finish adding or renaming the group before saving.'; this.render(); return }
     if (e.deleting) { e.error = 'Confirm or cancel the group deletion before saving.'; this.render(); return }
     let draft = e.draft
@@ -574,10 +765,12 @@ export class FavoritesPanelRenderer {
     const body = this.container.querySelector<HTMLElement>('.qa-page-body')!, bounds = body.getBoundingClientRect()
     drag.valid = drag.x >= bounds.left && drag.x <= bounds.right && drag.y >= bounds.top && drag.y <= bounds.bottom
     drag.target = undefined; this.container.querySelectorAll('.qa-drop-before, .qa-drop-after').forEach(node => node.classList.remove('qa-drop-before', 'qa-drop-after'))
-    if (drag.valid) for (const row of this.container.querySelectorAll<HTMLElement>('.qa-edit-group')) {
-      if (row.dataset.groupId === UNGROUPED_GROUP_ID) continue
+    const rows = drag.list === 'groups' ? '.qa-edit-group' : '.qa-root-item'
+    if (drag.valid) for (const row of this.container.querySelectorAll<HTMLElement>(rows)) {
+      const id = drag.list === 'groups' ? row.dataset.groupId : row.dataset.rootId
+      if (id === UNGROUPED_GROUP_ID && drag.list === 'groups') continue
       const rect = row.getBoundingClientRect()
-      if (drag.y >= rect.top && drag.y <= rect.bottom) { drag.target = row.dataset.groupId; drag.after = drag.y > (rect.top + rect.bottom) / 2; row.classList.add(drag.after ? 'qa-drop-after' : 'qa-drop-before'); break }
+      if (drag.y >= rect.top && drag.y <= rect.bottom) { drag.target = id; drag.after = drag.y > (rect.top + rect.bottom) / 2; row.classList.add(drag.after ? 'qa-drop-after' : 'qa-drop-before'); break }
     }
   }
   private scrollDrag() {
@@ -594,7 +787,17 @@ export class FavoritesPanelRenderer {
     this.moveDrag(event)
     const valid = drag.valid && drag.target && drag.target !== drag.id; const target = drag.target, after = drag.after, id = drag.id
     this.cancelDrag()
-    if (valid && this.editor) { const order = this.projected().groupOrder.filter(candidate => candidate !== id); const index = order.indexOf(target!); order.splice(index + (after ? 1 : 0), 0, id); this.stage({ type: 'group:reorder', groupIds: order }) }
+    if (!valid || !this.editor) return
+    const insert = <T>(items: T[], key: (item: T) => string) => {
+      const moving = items.find(item => key(item) === id), rest = items.filter(item => key(item) !== id)
+      const index = rest.findIndex(item => key(item) === target)
+      if (moving === undefined || index < 0) return items
+      rest.splice(index + (after ? 1 : 0), 0, moving); return rest
+    }
+    const roots = this.editor.roots
+    // Roots are not a Favorites draft: the page keeps them until Save.
+    if (drag.list === 'roots' && roots) { roots.paths = insert(roots.paths, path => this.rootId(path)); this.render() }
+    else if (drag.list === 'groups') this.stage({ type: 'group:reorder', groupIds: insert(this.projected().groupOrder, group => group) })
   }
   private cancelDrag() {
     this.drag = undefined

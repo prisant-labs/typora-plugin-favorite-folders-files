@@ -17,6 +17,7 @@
     "prototype:check": "node scripts/prototype.mjs --check",
     "docs:screenshots": "node scripts/screenshots.mjs",
     "privacy:check": "node scripts/privacy-check.mjs --staged --repo .",
+    "privacy:tracked": "node scripts/privacy-check.mjs --tracked --repo .",
     "release:check": "node scripts/release.mjs --check"
   },
   "keywords": [

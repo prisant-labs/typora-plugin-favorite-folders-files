@@ -167,6 +167,66 @@ describe('shared Favorites settings editor', () => {
   })
 })
 
+describe('tab order setting', () => {
+  const order = (container: HTMLElement) => [...container.querySelectorAll('[data-tab-order] .qa-settings__order-name')].map(node => node.textContent)
+  const button = (container: HTMLElement, label: string) => container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!
+  const previewTabs = (container: HTMLElement) => [...container.querySelectorAll('.qa-settings__preview [role=tab]')].map(node => node.textContent)
+
+  it('lists the tabs in Display, moves one with its buttons and saves the whole order', async () => {
+    const container = document.createElement('div'); document.body.append(container)
+    const setOrder = vi.fn(async () => {})
+    const dispose = renderSettings(container, createFavoritesState(), vi.fn(), { tabs: { order: ['favorites', 'recent', 'browse'], writable: true, setOrder } })
+    const display = container.querySelector('[data-settings-section="display"]')!
+    expect(display.textContent).toContain('Tab order')
+    expect(display.textContent).toContain('The order of the tabs in the panel, and of the sections in the Stacked layout.')
+    expect(order(container)).toEqual(['Favorites', 'Recent', 'Browse'])
+    expect(button(container, 'Move up: Favorites').disabled).toBe(true)
+    expect(button(container, 'Move down: Browse').disabled).toBe(true)
+    button(container, 'Move up: Browse').click()
+    expect(setOrder).toHaveBeenCalledExactlyOnceWith(['favorites', 'browse', 'recent'])
+    await vi.waitFor(() => expect(container.querySelector<HTMLElement>('.qa-settings__status')!.hidden).toBe(true))
+    dispose()
+  })
+
+  it('shows Browse in the live preview, in the saved order', () => {
+    const container = document.createElement('div'); document.body.append(container)
+    const dispose = renderSettings(container, createFavoritesState(), vi.fn(), { tabs: { order: ['browse', 'favorites', 'recent'], writable: true, setOrder: vi.fn() } })
+    expect(previewTabs(container)).toEqual(['Browse', 'Favorites', 'Recent'])
+    container.querySelector<HTMLButtonElement>('.qa-settings__preview [data-key="tab-browse"]')!.click()
+    // The preview's Browse is synthetic and in memory: its folders open without reading the disk.
+    const preview = container.querySelector<HTMLElement>('.qa-settings__preview')!
+    expect(preview.querySelector('[aria-label="Collapse Projects"]')).not.toBeNull()
+    preview.querySelector<HTMLButtonElement>('[aria-label="Expand Atlas"]')!.click()
+    expect(preview.textContent).toContain('Project brief.md')
+    preview.querySelector<HTMLButtonElement>('[aria-label="Open Project brief.md"]')!.click()
+    expect(preview.textContent).toContain('Preview only')
+    dispose()
+    const plain = document.createElement('div')
+    const disposePlain = renderSettings(plain, createFavoritesState(), vi.fn())
+    expect(plain.querySelector('[data-tab-order]')).toBeNull()
+    expect(previewTabs(plain)).toEqual(['Favorites', 'Recent', 'Browse'])
+    disposePlain()
+  })
+
+  it('reports a failed save and keeps the order unchanged', async () => {
+    const container = document.createElement('div'); document.body.append(container)
+    const dispose = renderSettings(container, createFavoritesState(), vi.fn(), { tabs: { order: ['favorites', 'recent', 'browse'], writable: true, setOrder: vi.fn(async () => { throw new Error('Browse settings could not be saved.') }) } })
+    button(container, 'Move down: Favorites').click()
+    await vi.waitFor(() => expect(container.textContent).toContain('Browse settings could not be saved.'))
+    expect(order(container)).toEqual(['Favorites', 'Recent', 'Browse'])
+    dispose()
+  })
+
+  it('cannot be changed until Browse settings have been read', () => {
+    const container = document.createElement('div'); const setOrder = vi.fn()
+    const dispose = renderSettings(container, createFavoritesState(), vi.fn(), { tabs: { order: ['favorites', 'recent', 'browse'], writable: false, setOrder } })
+    const moves = [...container.querySelectorAll<HTMLButtonElement>('[data-tab-order] button')]
+    expect(moves).toHaveLength(6); expect(moves.every(move => move.disabled)).toBe(true)
+    moves[1].click(); expect(setOrder).not.toHaveBeenCalled()
+    dispose()
+  })
+})
+
 describe('settings updates', () => {
   it('shows an update pill beside the installed version and opens the confirmation', () => {
     const container = document.createElement('div'); document.body.append(container)

@@ -2,7 +2,8 @@
 
 Favorites adds a sidebar panel to [Typora](https://typora.io) that keeps the
 folders and Markdown files you use most one click away. You can organize them
-into groups, and see Typora's own Recent list alongside them.
+into groups, see Typora's own Recent list alongside them, and browse a folder
+tree that starts at folders you choose.
 
 Favorites is an early release. If something behaves differently from what this
 guide describes, please [open an issue](https://github.com/prisant-labs/typora-plugin-favorite-folders-files/issues).
@@ -13,6 +14,7 @@ guide describes, please [open an issue](https://github.com/prisant-labs/typora-p
 - [Open the panel](#open-the-panel)
 - [Favorites and groups](#favorites-and-groups)
 - [Recent](#recent)
+- [Browse](#browse)
 - [Opening files and folders](#opening-files-and-folders)
 - [Views, sorting and search](#views-sorting-and-search)
 - [Settings](#settings)
@@ -96,9 +98,81 @@ Recent**, split into **Files** and **Folders**.
   Recent says **Typora's order** there and **Recently opened** sorting is
   unavailable.
 
+## Browse
+
+Browse is a folder tree that starts at folders you choose. Typora's own file
+tree shows the folder of whatever file you open last, and has no way up. Browse
+stays where you left it, whichever file Typora opens. Browse is new and has not
+yet been tested in Typora.
+
+The tree starts with your **root folders**, in your order, then two built-in
+entries:
+
+- **Home**, your user folder, such as `C:\Users\<you>` or `/Users/<you>`.
+  Favorites finds it for you. It is left out if Typora does not say where it
+  is.
+- **Drives** on Windows, or **Volumes** on macOS. It lists your drives or
+  mounted volumes when you expand it.
+
+Root folders are the starting points you choose; there is no separate home
+folder setting for Browse. Add a folder you work in, such as `D:\Notes`, as a
+root, and it appears at the top of the tree. You can have up to 50 roots, on any
+drives, in any order.
+
+### More than one drive
+
+- **Drives** lists every drive letter Windows reports, from **C:** to **Z:**.
+  That includes USB drives and network drives mapped to a letter. Expand a drive
+  to browse it from its top folder.
+- On macOS, **Volumes** lists the internal disk, external drives and mounted
+  network shares.
+- A root can be on any drive, and a whole drive can be a root, such as `D:\`.
+- A network share without a drive letter, such as `\\server\notes`, does not
+  appear under **Drives**. Add it as a root by its full path instead.
+- Browse reads the list of drives again when you switch back to the Typora
+  window, so a drive you plug in appears then. A root on a drive that is not
+  connected stays in your list. When you expand it, Browse shows
+  **Unavailable** or **Could not be read** in place of its contents.
+- Drive letters **A:** and **B:** are not listed.
+
+### Using the tree
+
+- **Click a folder** to expand or collapse it. Browse reads one folder at a
+  time, when you expand it, and remembers which folders you expanded.
+- **Click a Markdown file** to open it in this window. On Windows,
+  **Ctrl+click** opens it in a new window.
+- **Arrow keys:** Up and Down move between rows; Right expands a folder or
+  steps into it; Left collapses it or steps out to its parent.
+- Browse shows folders and Markdown files only. It hides names that start with
+  a dot, and on Windows, system folders such as `$Recycle.Bin`.
+- A folder Browse cannot read shows **No access**, **Unavailable** or **Could
+  not be read** in place of its contents.
+- The **star** adds a folder or file to Favorites, and the reveal button shows
+  it in Explorer or Finder.
+- A folder's **⋯** menu has **Open in Typora**, which makes it the folder
+  Typora has open, as if you opened it from Typora's own folder menu. It also
+  has **Add to Browse roots** or **Remove from Browse roots**.
+
+### Manage roots
+
+**Manage roots**, beside **Views**, opens a page where you can:
+
+- add the folder Typora has open, or any folder by its full path, such as
+  `D:\Notes` or `/Volumes/Notes`;
+- reorder roots by dragging the dotted grip, or with the arrows;
+- remove roots;
+- show or hide **Home** and **Drives** (**Volumes**).
+
+Like the other editing pages, it saves nothing until you press **Save**.
+
+Browse reads folders again when you open the panel or switch back to the
+Typora window, so files added outside Typora appear. On macOS, reading folders
+such as Documents or Desktop may make macOS ask whether Typora may access them.
+
 ## Opening files and folders
 
-Clicking works the same way in Favorites and in Recent.
+Clicking works the same way in Favorites and in Recent. In Browse, clicking a
+folder expands it instead; use its **⋯** menu to open it in Typora.
 
 | Action | File | Folder |
 |---|---|---|
@@ -114,21 +188,30 @@ If a Favorite's file or folder has moved or been deleted, the row is marked
 
 ## Views, sorting and search
 
-- **Views** chooses the layout: **Tabs** shows Favorites and Recent one at a
-  time, and **Stacked** shows both in one list. It also chooses how groups
+- **Views** chooses the layout: **Tabs** shows Favorites, Recent and Browse one
+  at a time, and **Stacked** shows all three in one list. Both follow the
+  **Tab order** setting (see [Settings](#settings)). It also chooses how groups
   appear: **Outline** lists every group, and **Filter** shows one group at a
   time.
 - **Groups** and **Items** set the sort order: **Custom** (your arranged order),
   **A–Z**, or **Recently opened**. Recently opened follows Typora's Recent list,
   so it is only available when every entry in that list has a date.
-- **Search** matches names and paths across your Favorites and Recent.
+- **Search** matches names and paths across your Favorites and Recent. It does
+  not search Browse.
 
 ## Settings
 
 Open Typora's settings, then **Community Plugins → Favorites**, or click the
 sliders button in the panel header. The settings page has the same layout and
 sorting options as the panel, plus a live preview. The preview uses made-up
-sample data and never shows your real Favorites or Recent list.
+sample data and never shows your real Favorites, Recent list or folders.
+
+**Tab order**, under **Display**, sets the order of the **Favorites**,
+**Recent** and **Browse** tabs. Use the arrows beside a tab to move it. The
+order also applies to the sections of the **Stacked** layout, and the live
+preview shows it at once. Each move is saved straight away, and every Typora
+window follows it. The panel keeps the tab you last selected, wherever it sits
+in the order.
 
 ## Updates
 
@@ -169,6 +252,10 @@ How Favorites learns about a new version:
 - Favorites are saved on this computer, in Typora's local browser storage (an
   IndexedDB database named `prisant-labs.favorite-folders-files`). They are
   shared by every Typora window on this computer.
+- Browse saves its root folders, its Home and Drives choices, which folders
+  are expanded, and the tab order, in the same database. It keeps folder contents only in
+  memory. On macOS, each folder it reads runs one `ls` command through Typora,
+  with the folder's path quoted; that is the only shell command Favorites runs.
 - Favorites collects no telemetry and sends nothing about you or your files.
   It causes network requests only through Community Plugin Core: the update
   check, which you can turn off, and an update you confirm. Both are described
@@ -238,6 +325,24 @@ No. It only reads Typora's Recent list while the panel is visible, or when you
 run **Favorites: Copy Recent diagnostics**. Typora
 itself decides what goes into that list, including files and folders you open
 from Favorites.
+
+**How is Browse different from Typora's own file tree?**
+Typora's file tree shows the folder Typora has open, and it moves when you open
+a file somewhere else. Browse starts at your root folders and stays where you
+left it. To make Typora's tree match a folder in Browse, use that folder's
+**⋯** menu → **Open in Typora**.
+
+**Why doesn't Browse show all my files?**
+Browse lists folders and Markdown files only. It hides names that start with a
+dot and, on Windows, system folders such as `$Recycle.Bin`. The other files are
+still there; open them from Explorer or Finder.
+
+**Why does a folder in Browse say "No access"?**
+Your computer did not let Typora read it. On macOS, folders such as Documents
+or Desktop need your permission, and macOS asks the first time. If you chose
+**Don't Allow**, turn Typora on under **System Settings → Privacy & Security →
+Files and Folders**. On Windows, some old shortcut folders inside your user
+folder, such as `Application Data`, always say **No access**; that is expected.
 
 **Why did clicking a folder open a new window?**
 Ctrl+click opens a new window on purpose. Clicking the folder that's already

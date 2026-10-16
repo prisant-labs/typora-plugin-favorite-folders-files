@@ -16,8 +16,18 @@ vi.mock('./update-store', () => ({ FavoritesUpdateStore: class {
   async update(change: (record: Record<string, unknown>) => Record<string, unknown>) { updates.record = structuredClone(change(structuredClone(updates.record))); return structuredClone(updates.record) }
   async close() {}
 } }))
+const browseRecord = vi.hoisted(() => ({ value: {} as Record<string, unknown> }))
+vi.mock('./browse-store', async importOriginal => {
+  const original = await importOriginal<typeof import('./browse-store')>()
+  return { ...original, BrowseStore: class {
+    constructor(private platform: 'win32' | 'darwin') {}
+    async read() { return original.normalizeBrowseRecord(structuredClone(browseRecord.value), this.platform) }
+    async update(change: (record: ReturnType<typeof original.normalizeBrowseRecord>) => unknown) { browseRecord.value = original.normalizeBrowseRecord(change(await this.read()), this.platform) as never; return this.read() }
+    async close() {}
+  } }
+})
 import QuickAccessPlugin from './main'
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); document.body.replaceChildren() })
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); document.body.replaceChildren(); browseRecord.value = {} })
 
 describe('plugin lifecycle', () => {
   it('registers ribbon, sidebar, settings, and commands; unload removes DOM and prevents stale resurrection', async () => {
@@ -141,6 +151,48 @@ describe('plugin lifecycle', () => {
     expect(modal.style.display).toBe('none')
     expect(Object.prototype.hasOwnProperty.call(quickOpenPanel, 'setRecentFiles')).toBe(false)
     quickOpenPanel.setRecentFiles(['/Synthetic/Later.md']); expect(received).toHaveLength(4)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('browses folders on Windows through Typora\'s Node fs, only while the panel is shown', async () => {
+    vi.useFakeTimers()
+    browseRecord.value = { roots: ['C:/Synthetic'], active: true }
+    const app = {
+      platform: 'win32', openFile: vi.fn(), commands: { run: vi.fn() },
+      vault: { path: 'C:/Synthetic', on: vi.fn(() => () => {}) },
+      workspace: {
+        activeFile: undefined, activeEditor: { openFile: vi.fn() }, on: vi.fn(() => () => {}), ribbon: {},
+        sidebar: { addPanel: vi.fn((_panel: unknown) => () => {}), switch: vi.fn(), container: { addPanel: (panel: { containerEl: HTMLElement }) => document.body.append(panel.containerEl), removePanel: (panel: { containerEl: HTMLElement }) => panel.containerEl.remove() } },
+      },
+    }
+    vi.stubGlobal('JSBridge', { invoke: vi.fn(async () => ({ files: [], folders: [] })) })
+    const dirent = (name: string, directory: boolean) => ({ name, isDirectory: () => directory, isFile: () => !directory, isSymbolicLink: () => false })
+    const readdir = vi.fn(async () => [dirent('Atlas', true), dirent('Note.md', false), dirent('image.png', false)])
+    vi.stubGlobal('reqnode', (id: string) => id === 'fs' ? { promises: { readdir, stat: vi.fn() } } : undefined)
+    const plugin = new QuickAccessPlugin(app as never, { id: 'prisant-labs.favorite-folders-files', name: 'Favorites' } as never)
+    plugin.onload(); await vi.advanceTimersByTimeAsync(0)
+    const panel = app.workspace.sidebar.addPanel.mock.calls[0]?.[0] as { containerEl: HTMLElement; show(): void }
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{}] as unknown as DOMRectList)
+    panel.show(); await vi.advanceTimersByTimeAsync(0)
+    const button = (label: string) => panel.containerEl.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!
+    expect(button('Browse').getAttribute('aria-selected')).toBe('true')
+    // Home comes from Core's os module; Drives stays closed until asked.
+    expect([...panel.containerEl.querySelectorAll('.qa-tree-open')].map(node => node.getAttribute('aria-label'))).toEqual(['Expand Synthetic', 'Expand Home', 'Expand Drives'])
+    expect(readdir).not.toHaveBeenCalled()
+    button('Expand Synthetic').click(); await vi.advanceTimersByTimeAsync(0)
+    expect(readdir).toHaveBeenCalledExactlyOnceWith('C:/Synthetic', { withFileTypes: true })
+    expect(browseRecord.value).toMatchObject({ expanded: ['folder:c:/synthetic'] })
+    expect(panel.containerEl.textContent).not.toContain('image.png')
+    button('Open Note.md').click(); await vi.advanceTimersByTimeAsync(0)
+    expect(app.openFile).toHaveBeenCalledWith('C:\\Synthetic\\Note.md')
+    // The settings page's Tab order saves in Browse's record and reorders the open panel.
+    const tab = (plugin as unknown as { tabs: Array<{ containerEl: HTMLElement; onshow(): void; onhide(): void }> }).tabs[0]
+    document.body.append(tab.containerEl); tab.onshow()
+    tab.containerEl.querySelector<HTMLButtonElement>('[aria-label="Move up: Browse"]')!.click(); await vi.advanceTimersByTimeAsync(0)
+    expect(browseRecord.value).toMatchObject({ order: ['favorites', 'browse', 'recent'] })
+    expect([...panel.containerEl.querySelectorAll('[role=tab]')].map(node => node.textContent)).toEqual(['Favorites', 'Browse', 'Recent'])
+    tab.onhide()
+    plugin.onunload()
     expect(vi.getTimerCount()).toBe(0)
   })
 

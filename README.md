@@ -3,7 +3,8 @@
 Keep your favorite folders and Markdown files one click away in
 [Typora](https://typora.io). Favorites adds a sidebar panel where you save
 shortcuts, organize them into groups, and see Typora's own Recent list
-alongside them.
+alongside them. Its Browse tab shows a folder tree that starts at folders you
+choose, and stays put when Typora opens a file somewhere else.
 
 ![The Favorites panel in Typora, showing grouped folders and Markdown files](docs/images/favorites-panel.png)
 
@@ -39,16 +40,33 @@ alongside them.
 
 ![The Recent tab listing recent Markdown files](docs/images/recent.png)
 
+**Browse** (new, not yet tested in Typora)
+
+- A folder tree that starts at **root folders** you choose, followed by your
+  **Home** folder and your **Drives** (**Volumes** on macOS). Typora's own file
+  tree follows whichever file you open; Browse stays where you left it.
+- Click a folder to expand it, one level at a time. Browse shows folders and
+  Markdown files only, and hides hidden and system folders.
+- Click a Markdown file to open it. A folder's **⋯** menu can make it the
+  folder Typora has open (**Open in Typora**), or add it to your roots.
+- **Manage roots** adds roots by path or from the folder that is open, puts
+  them in order by dragging or with arrows, and hides Home or Drives.
+- Roots can sit on any drive. **Drives** lists every drive letter, including
+  USB and mapped network drives; a network share without a letter can be a root.
+
+![The Browse tab showing a folder tree under a root folder](docs/images/browse.png)
+
 **Views, sorting and search**
 
-- **Tabs** shows Favorites and Recent one at a time; **Stacked** shows both in
-  one list.
+- **Tabs** shows Favorites, Recent and Browse one at a time; **Stacked** shows
+  all three in one list. The **Tab order** setting puts them in the order you
+  choose.
 - **Outline** lists every group; **Filter** shows one group at a time.
 - Sort groups and items by **Custom** order, **A–Z**, or **Recently opened**,
   which follows Typora's Recent list.
 - Search matches names and paths across Favorites and Recent.
 
-![Stacked view with Favorites and Recent in one list](docs/images/stacked.png)
+![Stacked view with the Favorites and Recent sections in one list](docs/images/stacked.png)
 
 **Opening**
 
@@ -70,8 +88,9 @@ alongside them.
 
 **Settings**
 
-The settings page has the same layout and sorting options as the panel, plus
-a live preview that uses sample data, never your real Favorites or Recent list.
+The settings page has the same layout and sorting options as the panel, a
+**Tab order** list that moves each tab with arrows, and a live preview. The
+preview uses sample data, never your real Favorites, Recent list or folders.
 
 ![Favorites settings with the live preview](docs/images/settings.png)
 
@@ -112,6 +131,12 @@ to Community Plugin "vaults", and an FAQ.
 - Recent is read from Typora while the panel is visible, or when you run the
   diagnostics command. It is kept in memory and never written anywhere. The
   diagnostics report holds no paths or names.
+- Browse saves your root folders, its Home and Drives choices, which folders
+  are expanded, and the tab order, in the same local database. It reads a folder's
+  contents only while the panel is visible, keeps them in memory, and never
+  changes anything on disk. On macOS, each folder it reads runs one `ls`
+  command through Typora, with the folder's path quoted; that is the only shell
+  command Favorites runs.
 
 ## Status and known limits
 
@@ -127,6 +152,9 @@ to Community Plugin "vaults", and an FAQ.
   Recent on macOS is new in 0.1.3. It reads two macOS channels found in
   Typora's page code. On a Mac, its Files and Folders tabs matched Typora's own
   Recent list; the rest of the macOS Recent checks are still in progress.
+- **Browse** is new and has not yet been tested in Typora on either platform.
+  On macOS, reading folders such as Documents or Desktop may make macOS ask
+  whether Typora may access them.
 - **Recently opened** sorting needs a date on every entry in Typora's Recent
   list. When some entries have none, it stays unavailable and each Recent tab
   keeps Typora's own order.
@@ -135,6 +163,12 @@ to Community Plugin "vaults", and an FAQ.
   carried over. Remove that old plugin folder before installing.
 
 ## Development
+
+[CONTRIBUTING.md](CONTRIBUTING.md) explains how to set up, make a change and
+cut a release. [ARCHITECTURE.md](ARCHITECTURE.md) explains how the plugin is put
+together and where its data lives. Coding agents start from
+[AGENTS.md](AGENTS.md). To report a security problem, follow
+[SECURITY.md](SECURITY.md) rather than opening a public issue.
 
 Install dependencies with `pnpm install`. Then:
 
@@ -146,6 +180,7 @@ Install dependencies with `pnpm install`. Then:
 | `pnpm install:dev` | Development build installed into the synthetic `test/vault` fixture (does not launch Typora) |
 | `pnpm prototype:build` / `pnpm prototype:check` | Regenerate / verify the visual anchor |
 | `pnpm docs:screenshots` | Regenerate the README screenshots from the visual anchor (needs Edge or Chrome) |
+| `pnpm privacy:check` / `pnpm privacy:tracked` | Scan staged files before a commit / every tracked file, as CI does |
 | `pnpm run pack` / `pnpm release:check` | Build and validate `plugin.zip` |
 
 [`docs/prototype/quick-access.html`](docs/prototype/quick-access.html) is a

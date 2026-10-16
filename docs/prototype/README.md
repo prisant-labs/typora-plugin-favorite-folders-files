@@ -11,8 +11,12 @@ history unavailable/recording-off/per-kind states, and simulated cancellation
 or save failure. Add, Move, Manage groups and Arrange Favorites use the same
 draft and atomic replay code as the native plugin. Recent entries are a
 synthetic stand-in for Typora's live Recent list; opening a location updates
-them, as Typora's list would. The settings page uses the shared production
-controls and its own isolated synthetic preview. Reading Typora's real Recent
+them, as Typora's list would. Browse runs the production Browse controller
+over a synthetic folder tree and an in-memory record; one synthetic folder
+cannot be read, to show the **No access** state. The settings page uses the shared production
+controls and its own isolated synthetic preview. Its **Tab order** list saves
+through the same Browse controller, so the panel and the settings preview both
+follow it. Reading Typora's real Recent
 list is Windows-only.
 These controls are outside the plugin. The displayed editor and Outline View
 are context, not additional Favorites features.
