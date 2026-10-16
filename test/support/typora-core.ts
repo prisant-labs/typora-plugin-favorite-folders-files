@@ -41,3 +41,4 @@ export class Modal {
   close() { this.listeners.forEach(callback => callback()); this.containerEl.style.display = 'none' }
 }
 export const fs = { stat: async () => ({ isFile: () => true, isDirectory: () => false }), isDirectory: async () => true }
+export const os = { homedir: () => 'C:\\Users\\Synthetic' }

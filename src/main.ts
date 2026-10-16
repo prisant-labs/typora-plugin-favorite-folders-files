@@ -1,4 +1,7 @@
-import { Plugin, SidebarPanel, fs } from '@typora-community-plugin/core'
+import { Plugin, SidebarPanel, fs, os } from '@typora-community-plugin/core'
+import { macBrowseSource, macCommandRunner, nodeBrowseSource, type BrowseSource, type MacCommandBridge, type NodeFsPromises } from './browse-fs'
+import { BrowseController } from './browse-runtime'
+import { BrowseStore } from './browse-store'
 import { FavoritesController } from './controller'
 import { FavoritesRuntime } from './favorites-runtime'
 import { FavoritesPanelRenderer } from './favorites-panel'
@@ -12,8 +15,19 @@ import { openSettings, QuickAccessSettingTab } from './settings'
 import { UpdateNotifier, type PluginManagerLike } from './update-check'
 import { openUpdateConfirmation } from './update-dialog'
 import { FavoritesUpdateStore } from './update-store'
+import type { Platform } from './model'
 import './style.scss'
 import './settings.scss'
+
+/** Browse's folder listings: Node's `fs` on Typora's Electron builds, a quoted `ls` through Typora's bridge on macOS. */
+function browseSource(platform: Platform, openFolder: () => string | undefined): BrowseSource | undefined {
+  const home = () => os.homedir()
+  try {
+    if (platform === 'darwin') return macBrowseSource(macCommandRunner(() => (globalThis as { bridge?: MacCommandBridge }).bridge, openFolder), home)
+    const nodeFs = (globalThis as { reqnode?: (id: string) => unknown }).reqnode?.('fs') as { promises?: NodeFsPromises } | undefined
+    return nodeFs?.promises ? nodeBrowseSource(nodeFs.promises, platform, home) : undefined
+  } catch { return undefined }
+}
 
 export default class QuickAccessPlugin extends Plugin {
   private cleanup?: () => void
@@ -38,10 +52,9 @@ export default class QuickAccessPlugin extends Plugin {
     const macRecent = app.platform === 'darwin' ? new MacRecentReader({ bridge: () => typora.bridge, quickOpen: () => typora.File?.editor?.quickOpenPanel }) : undefined
     const readHistory = app.platform === 'win32' ? async () => bridge().invoke('setting.getRecentFiles') : macRecent && (() => macRecent.read())
     const historyAvailable = macRecent && (() => macRecent.available())
-    const runtime = new FavoritesRuntime(host, collection, {
-      readHistory, historyAvailable,
-      isVisible: () => container.isConnected && container.getClientRects().length > 0,
-    })
+    const isVisible = () => container.isConnected && container.getClientRects().length > 0
+    const runtime = new FavoritesRuntime(host, collection, { readHistory, historyAvailable, isVisible })
+    const browse = new BrowseController(new BrowseStore(app.platform), browseSource(app.platform, () => app.vault.path || undefined), app.platform, { isVisible })
     let disposed = false
     const settings = () => { if (!disposed) return openSettings(app) }
     // Core's plugin manager: Favorites reads its Marketplace data and calls its update, never GitHub itself.
@@ -65,7 +78,7 @@ export default class QuickAccessPlugin extends Plugin {
     const markSidebar = (open: boolean) => document.getElementById('typora-sidebar')?.classList.toggle('qa-favorites-open', open)
     // Fresh class per enable: core keeps a stale private activePanel after removal.
     class QuickAccessSidebarPanel extends SidebarPanel {
-      show() { if (!disposed) { super.show(); markSidebar(true); void runtime.syncHistory(true); void notifier.check() } }
+      show() { if (!disposed) { super.show(); markSidebar(true); void runtime.syncHistory(true); browse.refresh(true); void notifier.check() } }
       hide() { markSidebar(false); super.hide() }
     }
     const panel = new QuickAccessSidebarPanel(app.workspace.ribbon, app.workspace.sidebar)
@@ -75,14 +88,15 @@ export default class QuickAccessPlugin extends Plugin {
     const renderer = new FavoritesPanelRenderer(panel.containerEl, {
       change: operation => runtime.change(operation), commit: draft => runtime.commit(draft), open: (kind, path, options) => runtime.open(kind, path, options),
       reveal: (kind, path) => runtime.reveal(kind, path), settings: () => Promise.resolve(settings()),
-      update: confirmUpdate,
+      update: confirmUpdate, browse,
     })
     const push = () => {
       const version = notifier.state.version
-      renderer.update({ ...runtime.snapshot, update: version ? { version } : undefined })
+      renderer.update({ ...runtime.snapshot, browse: browse.snapshot, update: version ? { version } : undefined })
     }
     const unsubscribe = runtime.subscribe(push)
     const unsubscribeUpdates = notifier.subscribe(push)
+    const unsubscribeBrowse = browse.subscribe(push)
     const removePanel = app.workspace.sidebar.addPanel(panel)
     const tab = new QuickAccessSettingTab(collection, {
       version: this.manifest.version, author: this.manifest.author, authorUrl: this.manifest.authorUrl, repo: this.manifest.repo,
@@ -92,6 +106,10 @@ export default class QuickAccessPlugin extends Plugin {
       updates: {
         state: () => notifier.state, subscribe: listener => notifier.subscribe(listener), open: confirmUpdate,
         setEnabled: enabled => notifier.setEnabled(enabled), check: () => { void notifier.check() },
+      },
+      tabs: {
+        state: () => { const { record, writable } = browse.snapshot; return { order: record.order, writable } },
+        subscribe: listener => browse.subscribe(() => listener()), setOrder: order => browse.setOrder(order),
       },
     }); this.registerSettingTab(tab)
     this.registerCommand({ id: 'toggle', title: 'Toggle panel', scope: 'global', callback: () => { if (!disposed) app.workspace.sidebar.switch(QuickAccessSidebarPanel) } })
@@ -108,12 +126,12 @@ export default class QuickAccessPlugin extends Plugin {
     } })
     const cleanup = () => {
       if (disposed) return
-      disposed = true; diagnostics?.close(); updateDialog?.close(); tab.dispose(); unsubscribe(); unsubscribeUpdates(); notifier.dispose(); void updateStore.close()
-      runtime.dispose(); macRecent?.dispose()
+      disposed = true; diagnostics?.close(); updateDialog?.close(); tab.dispose(); unsubscribe(); unsubscribeUpdates(); unsubscribeBrowse(); notifier.dispose(); void updateStore.close()
+      runtime.dispose(); browse.dispose(); macRecent?.dispose()
       renderer.dispose(); panel.hide(); panel.containerEl.remove(); removePanel()
     }
     this.cleanup = cleanup; this.register(cleanup)
-    void runtime.start()
+    void runtime.start(); void browse.start()
   }
   onunload(): void { this.cleanup?.(); this.cleanup = undefined }
 }

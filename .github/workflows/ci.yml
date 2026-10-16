@@ -41,6 +41,9 @@ jobs:
       - name: Check visual anchor freshness
         # Deliberately check before any generator can rewrite the committed file.
         run: pnpm prototype:check
+      - name: Scan tracked files for private content
+        # The same patterns as the local pre-commit check, for commits made without it.
+        run: pnpm privacy:tracked
       - name: Run behavior tests
         run: pnpm test:run
       - name: Typecheck

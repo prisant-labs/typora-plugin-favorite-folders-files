@@ -40,18 +40,21 @@ const sensitiveTextPatterns = [
 ]
 
 function usageError(message) {
-  throw new Error(`${message}\nUsage: privacy-check.mjs --staged [--repo <path>]`)
+  throw new Error(`${message}\nUsage: privacy-check.mjs (--staged | --tracked) [--repo <path>]`)
 }
 
 function parseArguments(arguments_) {
   let repo = '.'
-  let staged = false
+  let mode
 
   for (let index = 0; index < arguments_.length; index += 1) {
     const argument = arguments_[index]
 
-    if (argument === '--staged') {
-      staged = true
+    if (argument === '--staged' || argument === '--tracked') {
+      if (mode) {
+        usageError('Pass only one of --staged and --tracked')
+      }
+      mode = argument.slice(2)
       continue
     }
 
@@ -68,11 +71,11 @@ function parseArguments(arguments_) {
     usageError(`Unknown argument: ${argument}`)
   }
 
-  if (!staged) {
-    usageError('Only staged-tree checks are supported; pass --staged')
+  if (!mode) {
+    usageError('Pass --staged to check what a commit would add, or --tracked to check every tracked file')
   }
 
-  return { repo: resolve(repo) }
+  return { repo: resolve(repo), mode }
 }
 
 function runGit(repo, arguments_, options = {}) {
@@ -105,6 +108,16 @@ function stagedPaths(repo) {
     ['diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z'],
     { encoding: null },
   )
+
+  return output
+    .toString('utf8')
+    .split('\0')
+    .filter(Boolean)
+}
+
+// Every file in the index. After a checkout, as in CI, that is every committed file.
+function trackedPaths(repo) {
+  const output = runGit(repo, ['ls-files', '-z'], { encoding: null })
 
   return output
     .toString('utf8')
@@ -174,9 +187,9 @@ function inspectPath(path, contents) {
 }
 
 function main() {
-  const { repo } = parseArguments(process.argv.slice(2))
+  const { repo, mode } = parseArguments(process.argv.slice(2))
   const tree = runGit(repo, ['write-tree']).trim()
-  const paths = stagedPaths(repo)
+  const paths = mode === 'tracked' ? trackedPaths(repo) : stagedPaths(repo)
   const findings = []
 
   for (const path of paths) {

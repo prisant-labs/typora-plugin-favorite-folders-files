@@ -3,6 +3,45 @@
 All notable changes to Favorites for Typora are recorded here. Versions follow
 [semantic versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- **Browse tab.** A folder tree that starts at root folders you choose, then
+  your **Home** folder and your **Drives** (**Volumes** on macOS). Unlike
+  Typora's own file tree, it stays where you left it when Typora opens a file
+  in another folder. Click a folder to expand it one level, or a Markdown file
+  to open it. A folder's **⋯** menu opens it as Typora's folder or adds it to
+  your roots. Arrow keys move through the tree. Browse lists folders and
+  Markdown files only, hides hidden and system folders, and never changes
+  anything on disk. Not yet tested in Typora.
+- **Manage roots** page: add a root by its path or from the folder Typora has
+  open, reorder roots by dragging their grip or with arrows, remove roots, and
+  show or hide Home and Drives. Roots can be on any drive, including a whole
+  drive or a network share path.
+- In the **Stacked** layout, Browse is a third collapsible section.
+- **Tab order** setting, under **Display**: move **Favorites**, **Recent** and
+  **Browse** into any order with arrows. The panel's tabs, its arrow keys and
+  the **Stacked** sections all follow it, in every Typora window.
+
+### Changed
+
+- The add page names a location chosen in Browse **Selected**, as it names
+  locations from Recent **Recent**.
+- The settings page's live preview shows the Browse tab, with sample folders,
+  in your tab order.
+- The **Layout** setting's description says that **Stacked** shows all the
+  collections, not both.
+- The README images show the Browse tab and the **Tab order** setting, and a
+  new image shows the tree.
+- For contributors: CI now also scans every tracked file for private paths and
+  keys, as the pre-commit check does for staged files (`pnpm privacy:tracked`).
+  New `CONTRIBUTING.md` and `ARCHITECTURE.md` cover setup, the change workflow,
+  releases, and how the plugin stores and reads its data.
+- The README's Privacy section and the user guide describe what Browse saves
+  and reads. On macOS, Browse reads each folder with one quoted `ls` command
+  through Typora; it is the only shell command Favorites runs.
+
 ## 0.1.4 (2026-10-09)
 
 ### Added

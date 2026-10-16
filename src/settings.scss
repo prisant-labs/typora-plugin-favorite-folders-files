@@ -44,6 +44,12 @@
 .qa-settings__setting-name { color: var(--settings-text); font-size: 13px; }
 .qa-settings__setting-description { color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
 .qa-settings .qa-setting-row > select { box-sizing: border-box; flex: 0 1 auto; min-width: 120px; max-width: 100%; min-height: 30px; padding: 4px 7px; color: var(--settings-text); background: var(--settings-bg); border: 1px solid var(--settings-border); border-radius: 4px; font: inherit; font-size: 12px; cursor: pointer; }
+.qa-settings__order { display: flex; flex: 0 1 200px; flex-direction: column; gap: 4px; min-width: 150px; margin: 0; padding: 0; list-style: none; }
+.qa-settings__order-item { display: flex; align-items: center; gap: 2px; min-height: 30px; padding: 0 3px 0 9px; border: 1px solid var(--settings-border); border-radius: 4px; background: var(--settings-bg); }
+.qa-settings__order-name { flex: 1; min-width: 0; color: var(--settings-text); font-size: 12px; }
+.qa-settings__order-move { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: 0; padding: 0; border: 0; border-radius: 3px; color: var(--settings-text); background: transparent; cursor: pointer; }
+.qa-settings__order-move svg { width: 14px; height: 14px; stroke-width: 2; }
+.qa-settings__order-move:not(:disabled):hover { background: color-mix(in srgb, var(--settings-text) 8%, var(--settings-bg)); }
 .qa-settings__help { color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
 .qa-settings__status { color: var(--settings-text); font-size: 12px; line-height: 1.5; border-inline-start: 2px solid currentColor; padding-inline-start: 8px; }
 .qa-settings__preview { display: flex; flex-direction: column; flex: 0 0 340px; box-sizing: border-box; min-width: 0; max-width: 390px; padding: 14px; border: 1px solid var(--settings-border); border-radius: 8px; background: color-mix(in srgb, var(--settings-text) 3%, var(--settings-bg)); }
@@ -51,8 +57,8 @@
 .qa-settings__preview > .qa-settings__help { margin: 0 0 12px; }
 .qa-settings .qa-settings__preview-panel { flex: 1 0 460px; min-height: 460px; border: 1px solid var(--settings-border); border-radius: 5px; }
 .qa-settings__preview-status { margin: 8px 0 0; color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
-.qa-settings :is(.qa-setting-row > select, .qa-setting-row > input, .qa-settings__folder):disabled { cursor: default; opacity: .45; }
-.qa-settings :is(.qa-setting-row > select, .qa-setting-row > input, .qa-settings__folder, .qa-settings__update, .qa-settings__meta a):focus-visible { outline: 2px solid var(--active-file-border-color, var(--settings-text)); outline-offset: 2px; }
+.qa-settings :is(.qa-setting-row > select, .qa-setting-row > input, .qa-settings__folder, .qa-settings__order-move):disabled { cursor: default; opacity: .45; }
+.qa-settings :is(.qa-setting-row > select, .qa-setting-row > input, .qa-settings__folder, .qa-settings__update, .qa-settings__order-move, .qa-settings__meta a):focus-visible { outline: 2px solid var(--active-file-border-color, var(--settings-text)); outline-offset: 2px; }
 .qa-settings [hidden] { display: none !important; }
 @container (max-width: 850px) {
   .qa-settings__layout { flex-direction: column; gap: 16px; }

@@ -92,6 +92,36 @@ describe('staged privacy gate', () => {
     expect(result.stderr).toContain('unsafe.txt')
   })
 
+  it('scans every tracked file with --tracked, as CI does after checkout', () => {
+    const directory = repository()
+    writeFileSync(join(directory, 'safe.ts'), "export const label = 'Favorites'\n")
+    writeFileSync(join(directory, 'committed.txt'), ['', 'Users', 'synthetic-owner', 'notes'].join('/'))
+    git(directory, 'add', '.gitignore', 'safe.ts', 'committed.txt')
+    git(directory, 'commit', '-m', 'Synthetic commit')
+
+    // Nothing is staged after a commit, so the staged check has nothing to see.
+    const staged = run(directory, '--staged')
+    expect(staged.status, staged.stderr).toBe(0)
+    expect(staged.stdout).toContain('Scanned paths: 0')
+
+    const tracked = run(directory, '--tracked')
+    expect(tracked.status).toBe(1)
+    expect(tracked.stdout).toContain('Scanned paths: 3')
+    expect(tracked.stderr).toContain('committed.txt: macOS user home path')
+    expect(tracked.stderr).not.toContain('safe.ts')
+
+    git(directory, 'rm', '-q', 'committed.txt')
+    const clean = run(directory, '--tracked')
+    expect(clean.status, clean.stderr).toBe(0)
+    expect(clean.stdout).toContain('Result: pass')
+  })
+
+  it('requires exactly one of --staged and --tracked', () => {
+    const directory = repository()
+    expect(run(directory).stderr).toContain('Usage: privacy-check.mjs (--staged | --tracked)')
+    expect(run(directory, '--staged', '--tracked').status).toBe(1)
+  })
+
   function png(...chunks: Array<[string, Uint8Array?]>) {
     const parts: Uint8Array[] = [Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])]
     for (const [type, data = Buffer.alloc(0)] of chunks) {

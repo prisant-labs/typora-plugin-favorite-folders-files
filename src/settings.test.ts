@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { BrowseController } from './browse-runtime'
+import { cloneBrowseRecord, normalizeBrowseRecord } from './browse-store'
 import { FavoritesController } from './controller'
 import { applyFavoritesOperation, createFavoritesState, type FavoritesOperation } from './model'
 import { replayFavoritesDraft, type FavoritesDraft } from './editor-state'
@@ -67,6 +69,37 @@ describe('native shared settings', () => {
     expect(layout.value).toBe('tabs')
     expect(tab.containerEl.textContent).toContain('Setting save failed')
     tab.dispose(); controller.dispose()
+  })
+
+  it('saves the tab order through Browse, shows a failed save and keeps keyboard focus on the moved tab', async () => {
+    const state = createFavoritesState()
+    const controller = new FavoritesController({ read: async () => state, update: async () => state, commitDraft: async () => state, close: async () => {} }, 'win32')
+    await controller.start()
+    let record = normalizeBrowseRecord({ order: ['favorites', 'browse', 'recent'] }, 'win32'), fail = false
+    const browse = new BrowseController({
+      read: async () => cloneBrowseRecord(record),
+      update: async change => { if (fail) throw new Error('synthetic write failure'); return record = normalizeBrowseRecord(change(cloneBrowseRecord(record)), 'win32') },
+      close: async () => {},
+    }, undefined, 'win32', { pollMilliseconds: 0 })
+    await browse.start()
+    const tab = new QuickAccessSettingTab(controller, { tabs: {
+      state: () => ({ order: browse.snapshot.record.order, writable: browse.snapshot.writable }),
+      subscribe: listener => browse.subscribe(() => listener()), setOrder: order => browse.setOrder(order),
+    } })
+    document.body.append(tab.containerEl); tab.onshow()
+    const names = () => [...tab.containerEl.querySelectorAll('[data-tab-order] .qa-settings__order-name')].map(node => node.textContent)
+    const move = (label: string) => tab.containerEl.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!
+    expect(names()).toEqual(['Favorites', 'Browse', 'Recent'])
+    move('Move up: Browse').focus(); move('Move up: Browse').click()
+    await vi.waitFor(() => expect(record.order).toEqual(['browse', 'favorites', 'recent']))
+    expect(names()).toEqual(['Browse', 'Favorites', 'Recent'])
+    // Browse is now first, so its Move up is disabled and focus moves to its Move down.
+    expect(document.activeElement).toBe(move('Move down: Browse'))
+    expect(tab.containerEl.querySelector('.qa-settings__preview [role=tab]')?.textContent).toBe('Browse')
+    fail = true; move('Move down: Browse').click()
+    await vi.waitFor(() => expect(tab.containerEl.textContent).toContain('Browse settings could not be saved.'))
+    expect(names()).toEqual(['Browse', 'Favorites', 'Recent'])
+    tab.dispose(); browse.dispose(); controller.dispose()
   })
 
   it('refreshes Recent capability without a preference write and releases the subscription on hide', async () => {

@@ -1,4 +1,7 @@
 import { applyFavoritesOperation, createFavoritesState, locationId, UNGROUPED_GROUP_ID, type FavoritesState, type LocationKind } from '../src/model'
+import { BrowseListError, type BrowseEntry, type BrowseSource } from '../src/browse-fs'
+import { BrowseController } from '../src/browse-runtime'
+import { cloneBrowseRecord, normalizeBrowseRecord, type BrowseRecord } from '../src/browse-store'
 import { replayFavoritesDraft } from '../src/editor-state'
 import { FavoritesPanelRenderer } from '../src/favorites-panel'
 import { favoritesRibbonIcon } from '../src/panel'
@@ -20,6 +23,38 @@ let renderer: FavoritesPanelRenderer
 // Fixture-only: a newer version that Core's Marketplace would offer.
 let update: string | undefined
 let checkForUpdates = true
+// Fixture-only folders for Browse. A trailing slash marks a folder; null is a folder Browse may not read.
+const FOLDERS: Record<string, string[] | null> = {
+  '/Projects': ['Atlas/', 'Beacon/', 'Harbor/', 'Roadmap.md', 'Team charter.md'],
+  '/Projects/Atlas': ['Research/', 'Budget.xlsx', 'Project brief.md', 'Timeline.md'],
+  '/Projects/Atlas/Research': ['Interview notes.md', 'Sources.md'],
+  '/Projects/Beacon': ['Launch plan.md'],
+  '/Projects/Harbor': [],
+  '/Writing': ['Drafts/', 'Private/', 'Weekend essay.md'],
+  '/Writing/Drafts': ['Weekend essay draft.md'],
+  '/Writing/Private': null,
+  '/Home': ['Documents/', 'Notes/', '.config/'],
+  '/Home/Documents': ['Ideas.md', 'Meeting notes.md'],
+  '/Home/Notes': ['Inbox/', 'Reading list.md'],
+  '/Home/Notes/Inbox': ['Quick capture.md'],
+  '/Volumes/Archive': ['2024/', 'Index.md'],
+  '/Volumes/Archive/2024': ['Year in review.md'],
+  '/Volumes/Travel Drive': ['Itinerary.md'],
+}
+const browseSource: BrowseSource = {
+  async list(folder) {
+    const names = FOLDERS[folder]
+    if (names === null) throw new BrowseListError('denied')
+    if (!names) throw new BrowseListError('missing')
+    const entries: BrowseEntry[] = names.filter(name => !name.startsWith('.') && (name.endsWith('/') || name.endsWith('.md')))
+      .map(name => name.endsWith('/') ? { kind: 'folder', name: name.slice(0, -1), path: `${folder}/${name.slice(0, -1)}` } : { kind: 'file', name, path: `${folder}/${name}` })
+    return entries.sort((first, second) => (first.kind === second.kind ? 0 : first.kind === 'folder' ? -1 : 1) || first.name.localeCompare(second.name))
+  },
+  async drives() { return ['/Volumes/Archive', '/Volumes/Travel Drive'] },
+  home: () => '/Home',
+}
+let browseRecord: BrowseRecord
+let browse: BrowseController | undefined
 function openUpdate() {
   const dialog = document.querySelector<HTMLDialogElement>('#update-dialog')!, version = update
   if (!version) return
@@ -53,9 +88,13 @@ function createRenderer() { return new FavoritesPanelRenderer(mount, {
   reveal(kind, path) { status.textContent = 'Simulated Finder ' + (kind === 'file' ? 'reveal' : 'open') + ': ' + path + '. No navigation recorded.' },
   settings() { document.querySelector<HTMLDialogElement>('#settings-dialog')!.showModal(); syncSettings() },
   update: openUpdate,
+  browse: {
+    toggle: (key, path) => browse!.toggle(key, path), setActive: active => browse!.setActive(active), setCollapsed: collapsed => browse!.setCollapsed(collapsed),
+    addRoot: path => browse!.addRoot(path), removeRoot: path => browse!.removeRoot(path), saveRoots: change => browse!.saveRoots(change),
+  },
 }) }
 function render() {
-  renderer.update({ state, current, unavailable, error, platform: 'darwin', history: normalizeHistory(nativeFixture, 'darwin'), historySource: { available: true, loading: false }, writable: true, update: update ? { version: update } : undefined })
+  renderer.update({ state, current, unavailable, error, platform: 'darwin', history: normalizeHistory(nativeFixture, 'darwin'), historySource: { available: true, loading: false }, writable: true, update: update ? { version: update } : undefined, browse: browse?.snapshot })
   document.querySelector('#document-path')!.textContent = current.file || 'No document open'
   if (document.querySelector<HTMLDialogElement>('#settings-dialog')!.open) syncSettings()
 }
@@ -90,7 +129,16 @@ function fixture(name: string) {
   if (name === 'recording-off') nativeFixture = { status: 'recording-off' }
   if (name === 'per-kind') nativeFixture = { ...nativeFixture, order: 'per-kind', entries: nativeFixture.entries!.map(({ kind, path }) => ({ kind, path })) }
   update = name === 'update-available' ? '0.1.5' : undefined
-  status.textContent = 'Synthetic data and a simulated live Recent list. The panel, editor workflows, model and CSS are production code. Reading Typora\'s real Recent list happens only in Typora.'
+  // Fixture-only Browse record and folders; the Browse controller is production code.
+  browse?.dispose()
+  browseRecord = normalizeBrowseRecord({ roots: name === 'empty' ? [] : ['/Projects', '/Writing'], expanded: name === 'empty' ? [] : ['folder:/Projects', 'folder:/Projects/Atlas'] }, 'darwin')
+  browse = new BrowseController({
+    read: async () => cloneBrowseRecord(browseRecord),
+    update: async change => (browseRecord = normalizeBrowseRecord(change(cloneBrowseRecord(browseRecord)), 'darwin')),
+    close: async () => {},
+  }, browseSource, 'darwin', { pollMilliseconds: 0, isVisible: () => !mount.hidden })
+  browse.subscribe(() => render()); void browse.start()
+  status.textContent = 'Synthetic data and a simulated live Recent list. The panel, editor workflows, model and CSS are production code. Reading Typora\'s real Recent list and real folders happens only in Typora.'
   render()
 }
 function syncSettings() {
@@ -102,6 +150,8 @@ function syncSettings() {
     writable: true, version: INSTALLED, author: 'Prisant Labs', repo: REPO, recentAvailable: ordered,
     update: update ? { version: update, open: openUpdate } : undefined,
     updates: { enabled: checkForUpdates, setEnabled(enabled) { checkForUpdates = enabled; syncSettings() } },
+    // The production Browse controller keeps the order; render() redraws this page when it changes.
+    tabs: browse && { order: browse.snapshot.record.order, writable: browse.snapshot.writable, setOrder: order => browse!.setOrder(order) },
   })
 }
 document.querySelector('#theme')!.addEventListener('change', event => { document.documentElement.dataset.theme = (event.target as HTMLSelectElement).value })

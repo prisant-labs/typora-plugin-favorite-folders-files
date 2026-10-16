@@ -289,6 +289,79 @@ an older version:
 Record each step in the native acceptance worksheet. Until then, describe the
 pill as implemented but not verified in Typora.
 
+## Browse
+
+Browse reads folders with Node's `fs` on Windows, and with one quoted `ls`
+command through Typora's `controller.runCommand` bridge on macOS. Neither path
+has run in Typora yet. Use disposable folders with synthetic names.
+
+On both platforms:
+
+1. Open the panel and click **Browse**. It shows **Home** and **Drives**
+   (Windows) or **Volumes** (macOS). Nothing is read until you expand a row.
+2. Open **Manage roots**, add the open folder with **Add current folder**, add a
+   second folder by typing its full path, reorder them, and **Save**. The roots
+   appear above Home in that order.
+3. Expand a root, then a subfolder inside it. Only folders and Markdown files
+   appear, folders first. A dot-folder, such as `.git`, does not appear.
+4. Open a Markdown file from Browse that sits **outside** the folder Typora has
+   open. The file opens. Record whether Typora's own file tree moves to that
+   file's folder. Browse must stay as it was.
+5. Use a folder's **⋯** menu → **Open in Typora**. Typora's own file tree
+   switches to that folder.
+6. Create a Markdown file in an expanded folder from Explorer or Finder, then
+   switch back to Typora. The file appears in Browse within a few seconds.
+7. Restart Typora. The roots, and which folders were expanded, are kept.
+8. With a 0.1.4 window still open, select **Browse** in a newer window. The
+   0.1.4 window keeps showing and editing its Favorites without an error.
+
+On Windows:
+
+9. Expand **Drives**. Record how long the drive list takes, and whether a
+   disconnected network drive delays it. `$Recycle.Bin` and
+   `System Volume Information` do not appear under `C:`.
+10. Expand Home, then a legacy junction such as `Application Data`, if it is
+    shown. It shows **No access**, and the panel keeps working.
+11. **Ctrl+click** a Markdown file in Browse: it opens in a new window.
+
+On macOS:
+
+12. Add a root whose name contains an apostrophe, such as `It's here`, and
+    expand it. Its contents appear.
+13. Expand Home → **Documents** or **Desktop**. If macOS asks whether Typora
+    may access the folder, record the prompt. After **Don't Allow**, the folder
+    shows **No access** or no entries; record which.
+14. Expand **Volumes**. The startup volume and any mounted disks appear.
+15. Record how long a large folder, such as one with 500 entries, takes to
+    appear.
+
+Tab order and root order, on both platforms:
+
+16. In the settings, under **Display → Tab order**, move **Browse** to the top.
+    The panel's tabs read Browse, Favorites, Recent, and the selected tab does
+    not change. The live preview shows the same order. Keyboard focus stays on
+    Browse's other arrow.
+17. In the panel, the Left, Right, Home and End keys on the tabs follow the new
+    order. Switch **Views** to **Stacked**: the sections follow it too.
+18. With two Typora windows open, change the tab order in one. The other
+    follows within a few seconds. Restart Typora: the order is kept.
+19. In **Manage roots**, drag a root by its dotted grip above another, then
+    **Save**. The tree shows the new order. Press **Escape** in the middle of a
+    drag: nothing moves.
+
+More than one drive, on Windows:
+
+20. Add a root on a second drive, such as a USB drive, and expand it. Then
+    eject the drive and switch back to Typora. The drive leaves **Drives**.
+    Expanding the root shows **Unavailable** or **Could not be read**; record
+    which.
+21. If a network share is available, add it as a root by its `\\server\share`
+    path, and expand it. Record whether its contents appear and how long they
+    take.
+
+Record each step in the native acceptance worksheet. Until then, describe
+Browse as implemented but not verified in Typora.
+
 ## Migration and recovery
 
 The IndexedDB database is `prisant-labs.favorite-folders-files`, object store
@@ -299,7 +372,9 @@ to `recovery:v1` in the same transaction that writes v2 `current`.
 Recent-only v1 entries remain exclusively in the recovery copy.
 The update setting and the last update check live in a separate `updates`
 record. Saved Favorites accept an exact set of preference keys, so this record
-stays outside `current`, and older versions never read it.
+stays outside `current`, and older versions never read it. Browse's roots,
+expanded folders, selected tab and tab order live in a `browse` record for the
+same reason.
 
 Before testing an upgrade, back up the browser profile or export the original
 record. Use disposable seeded v1 data to test migration, interrupted writes,
