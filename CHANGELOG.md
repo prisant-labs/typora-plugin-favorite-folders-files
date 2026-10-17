@@ -3,7 +3,7 @@
 All notable changes to Favorites for Typora are recorded here. Versions follow
 [semantic versioning](https://semver.org/).
 
-## Unreleased
+## 0.2.0 (2026-10-17)
 
 ### Added
 
