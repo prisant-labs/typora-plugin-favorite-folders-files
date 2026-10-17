@@ -16,8 +16,8 @@ import { UpdateNotifier, type PluginManagerLike } from './update-check'
 import { openUpdateConfirmation } from './update-dialog'
 import { FavoritesUpdateStore } from './update-store'
 import type { Platform } from './model'
-import './style.scss'
-import './settings.scss'
+// One Sass entry, so the release style.css joins the panel and settings styles in a fixed order.
+import './plugin.scss'
 
 /** Browse's folder listings: Node's `fs` on Typora's Electron builds, a quoted `ls` through Typora's bridge on macOS. */
 function browseSource(platform: Platform, openFolder: () => string | undefined): BrowseSource | undefined {
@@ -108,7 +108,7 @@ export default class QuickAccessPlugin extends Plugin {
         setEnabled: enabled => notifier.setEnabled(enabled), check: () => { void notifier.check() },
       },
       tabs: {
-        state: () => { const { record, writable } = browse.snapshot; return { order: record.order, writable } },
+        state: () => browse.tabs,
         subscribe: listener => browse.subscribe(() => listener()), setOrder: order => browse.setOrder(order),
       },
     }); this.registerSettingTab(tab)

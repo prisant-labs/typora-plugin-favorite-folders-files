@@ -195,17 +195,23 @@ export class FavoritesController {
     return this.starting
   }
 
-  private confirm(value: FavoritesState): FavoritesState {
+  /**
+   * Adopts a confirmed state. A save always publishes. A read publishes only when it brings
+   * something new, so the 2-second poll never redraws an unchanged panel.
+   */
+  private confirm(value: FavoritesState, source: 'read' | 'save'): FavoritesState {
     const saved = validateFavoritesState(value, this.platform)
     if (saved.revision < this.current.revision || (saved.revision === this.current.revision && this.hasConfirmed && JSON.stringify(saved) !== JSON.stringify(this.current))) {
       throw new Error('Favorites saved revision does not match the last confirmed state')
     }
     if (!this.disposed) {
+      // Equal revisions were just checked to hold equal state.
+      const unchanged = source === 'read' && this.hasConfirmed && this.ready && this.error === undefined && saved.revision === this.current.revision
       this.current = saved
       this.ready = true
       this.hasConfirmed = true
       this.error = undefined
-      this.publish()
+      if (!unchanged) this.publish()
     }
     return validateFavoritesState(saved, this.platform)
   }
@@ -214,7 +220,7 @@ export class FavoritesController {
     return this.enqueue(async () => {
       try {
         const saved = await this.store.read()
-        if (!this.disposed) this.confirm(saved)
+        if (!this.disposed) this.confirm(saved, 'read')
       } catch (error) {
         if (!this.disposed) {
           this.ready = false
@@ -235,7 +241,7 @@ export class FavoritesController {
     if (!this.writable) return Promise.reject(new Error('Favorites is not ready for changes'))
     return this.enqueue(async () => {
       if (!this.writable) throw new Error('Favorites is not ready for changes')
-      try { return this.confirm(await work()) }
+      try { return this.confirm(await work(), 'save') }
       catch (error) {
         if (!this.disposed) {
           this.error = error instanceof Error ? error.message : 'Favorites could not be saved'

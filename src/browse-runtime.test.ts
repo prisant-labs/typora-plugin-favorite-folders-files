@@ -129,6 +129,9 @@ describe('Browse controller', () => {
     await controller.setOrder(['browse', 'favorites', 'recent'])
     expect(store.record.order).toEqual(['browse', 'favorites', 'recent'])
     expect(controller.snapshot.record.order).toEqual(['browse', 'favorites', 'recent'])
+    // The settings page reads only this, without copying every folder listing.
+    expect(controller.tabs).toEqual({ order: ['browse', 'favorites', 'recent'], writable: true })
+    controller.tabs.order.reverse(); expect(controller.tabs.order).toEqual(['browse', 'favorites', 'recent'])
     controller.dispose()
   })
 

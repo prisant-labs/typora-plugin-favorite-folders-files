@@ -58,6 +58,11 @@ export class BrowseController {
     }
   }
 
+  /** The tab order and whether it can be saved, without copying every folder listing as `snapshot` does. */
+  get tabs(): { order: PanelTab[]; writable: boolean } {
+    return { order: [...this.record.order], writable: this.ready && !this.disposed }
+  }
+
   subscribe(listener: (snapshot: BrowseSnapshot) => void): () => void {
     if (this.disposed) return () => {}
     this.listeners.add(listener)

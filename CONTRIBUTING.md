@@ -129,8 +129,7 @@ request.
 4. **Tag and publish.** Push the tag `X.Y.Z` on the merge commit. Create a
    GitHub release named `X.Y.Z` with the notes described below, and attach the
    `plugin.zip` that the check validated. Don't build again between checking
-   and uploading: two builds of the same commit can differ (see
-   [ARCHITECTURE.md](ARCHITECTURE.md#builds-and-the-release-archive)).
+   and uploading, so the checksum in the notes is the one that was checked.
 5. **Confirm the download.** Fetch `releases/download/X.Y.Z/plugin.zip` and
    compare its SHA-256 with the one in the notes.
 6. **Confirm the Plugin Marketplace** offers the new version. Its lists are

@@ -91,9 +91,8 @@ overwrite it.
 
 Windows see each other's changes by polling. Every 2 seconds,
 `FavoritesRuntime` reads the `current` record through `FavoritesController`,
-and `BrowseController` reads the `browse` record. Browse publishes only when
-its snapshot changed. The Favorites poll still redraws the panel on every read,
-which is a known cost. Typora's Recent list is not polled. It is read when the
+and `BrowseController` reads the `browse` record. Each publishes only when the
+read brings something new, so an idle panel is never redrawn. Typora's Recent list is not polled. It is read when the
 panel opens, when the window regains focus, and after Favorites opens
 something.
 
@@ -156,16 +155,19 @@ Edge or Chrome.
 ## Builds and the release archive
 
 - **Release build:** `rollup.config.js` compiles `src/main.ts` to
-  `dist/main.js`, and `style.scss` with `settings.scss` to `dist/style.css`.
-  Babel targets Chrome 80 and Safari 13.1 (`.browserslistrc`).
+  `dist/main.js`. `main.ts` imports one Sass entry, `src/plugin.scss`, which
+  loads `style.scss` and then `settings.scss` into `dist/style.css`. Babel
+  targets Chrome 80 and Safari 13.1 (`.browserslistrc`).
 - **Development build:** `build.js` uses esbuild. With `--install`, it copies
   the build into the synthetic `test/vault` fixture.
 - **Archive:** `pack.js` writes `plugin.zip`. `scripts/release.mjs` checks that
   it holds only `LICENSE.md`, `THIRD-PARTY-NOTICES.md`, `main.js`,
   `manifest.json` and `style.css`, and that the metadata matches.
-- **Known limit:** rollup joins the two stylesheets in whichever order they
-  finish compiling, so two builds of one commit can differ. Keep each
-  stylesheet's selectors to its own classes, so the order never matters.
+- **Stylesheet order:** `rollup-plugin-scss` joins separately imported
+  stylesheets in whichever order they finish compiling, which made two builds
+  of one commit differ up to 0.1.4. Import new stylesheets through
+  `plugin.scss`, never directly from `main.ts`. `scripts/stylesheet.test.ts`
+  guards this.
 
 ## Tests
 

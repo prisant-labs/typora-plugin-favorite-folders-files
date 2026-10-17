@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { applyOperation, createFavoritesState, createState, UNGROUPED_GROUP_ID } from './model'
-import { migrateToFavorites } from './migration'
+import { migrateToFavorites, recoveryRecordsMatch } from './migration'
 
 function legacyFixture() {
   let state = createState()
@@ -23,6 +23,35 @@ describe('Favorites state migration', () => {
     expect(result.recovery).toEqual(legacy)
     legacy.extra.nested.push('later mutation')
     expect((result.recovery as typeof legacy).extra.nested).toEqual(['original'])
+  })
+
+  it('keeps the same exact recovery copy without structuredClone, which older macOS WebKit lacks', () => {
+    vi.stubGlobal('structuredClone', undefined)
+    try {
+      const legacy = {
+        ...legacyFixture(),
+        extra: { nested: ['original'], optional: undefined, created: new Date('2020-01-01T00:00:00Z') },
+      }
+      const cyclic: Record<string, unknown> = { label: 'loop' }; cyclic.self = cyclic
+      // Found by review: a trailing hole and an own "__proto__" field must survive the copy.
+      const sparse = new Array(3); sparse[0] = 'first'
+      const ownProto = JSON.parse('{"__proto__": {"kept": true}, "plain": 1}') as Record<string, unknown>
+      Object.assign(legacy, { cyclic, sparse, ownProto })
+      const result = migrateToFavorites(legacy, 'darwin')
+      if (!result.migrated) throw new Error('Expected migration')
+      expect(recoveryRecordsMatch(result.recovery, legacy)).toBe(true)
+      const recovery = result.recovery as unknown as typeof legacy & { cyclic: Record<string, unknown> }
+      expect(recovery).not.toBe(legacy)
+      expect(recovery.extra.created).toBeInstanceOf(Date); expect(recovery.extra.created).not.toBe(legacy.extra.created)
+      expect(recovery.cyclic.self).toBe(recovery.cyclic)
+      const copied = result.recovery as unknown as { sparse: unknown[]; ownProto: Record<string, unknown> }
+      expect(copied.sparse).toHaveLength(3); expect(1 in copied.sparse).toBe(false); expect(copied.sparse[0]).toBe('first')
+      expect(Object.prototype.hasOwnProperty.call(copied.ownProto, '__proto__')).toBe(true)
+      expect(Object.getPrototypeOf(copied.ownProto)).toBe(Object.prototype)
+      expect(copied.ownProto).not.toHaveProperty('kept')
+      legacy.extra.nested.push('later mutation')
+      expect(recovery.extra.nested).toEqual(['original'])
+    } finally { vi.unstubAllGlobals() }
   })
 
   it('moves every v1 pin exactly once to Ungrouped in retained order', () => {
