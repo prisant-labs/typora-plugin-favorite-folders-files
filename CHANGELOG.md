@@ -45,6 +45,18 @@ All notable changes to Favorites for Typora are recorded here. Versions follow
   and reads. On macOS, Browse reads each folder with one quoted `ls` command
   through Typora; it is the only shell command Favorites runs.
 
+### Fixed
+
+- The panel no longer redraws itself every 2 seconds when nothing has changed.
+  Favorites checks its saved data that often, so changes made in another Typora
+  window still appear within a few seconds. Before, each check rebuilt the
+  whole panel twice, which could clear a text selection or a hover highlight.
+- Upgrading saved data from Favorites' earliest format no longer depends on a
+  browser feature (`structuredClone`) that older macOS versions of Typora lack.
+- For contributors: building the same commit twice now gives the same
+  `style.css`, and so the same `plugin.zip`. The panel and settings styles had
+  been joined in whichever order they finished compiling.
+
 ## 0.1.4 (2026-10-09)
 
 ### Added

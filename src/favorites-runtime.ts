@@ -69,8 +69,12 @@ export class FavoritesRuntime {
     if (!this.disposed) for (const listener of this.listeners) this.notify(listener)
   }
 
+  /** What `observe()` can change, compared so that an unchanged location publishes nothing. */
+  private observed() { return JSON.stringify([this.current, [...this.unavailable], this.actionError ?? null, this.failedTarget ?? null]) }
+
   private observe() {
     if (this.disposed) return
+    const before = this.observed()
     const current: FavoritesPanelSnapshot['current'] = {}
     try {
       const actual = this.host.current()
@@ -87,7 +91,7 @@ export class FavoritesRuntime {
       }
     } catch { /* A temporary host read failure leaves no invented current path. */ }
     this.current = current
-    this.publish()
+    if (this.observed() !== before) this.publish()
   }
 
   async start(): Promise<void> {

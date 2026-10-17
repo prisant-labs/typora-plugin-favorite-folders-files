@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { applyFavoritesOperation, createFavoritesState, type FavoritesOperation } from './model'
 import { replayFavoritesDraft, type FavoritesDraft } from './editor-state'
+import { FavoritesPanelRenderer } from './favorites-panel'
 vi.mock('@typora-community-plugin/core', () => import('../test/support/typora-core'))
 vi.mock('./storage', () => ({ FavoritesIndexedDbStore: class {
   state = createFavoritesState()
@@ -185,6 +186,10 @@ describe('plugin lifecycle', () => {
     expect(panel.containerEl.textContent).not.toContain('image.png')
     button('Open Note.md').click(); await vi.advanceTimersByTimeAsync(0)
     expect(app.openFile).toHaveBeenCalledWith('C:\\Synthetic\\Note.md')
+    // With nothing changing, the 2-second polls never redraw the panel.
+    const redraw = vi.spyOn(FavoritesPanelRenderer.prototype, 'update')
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(redraw).not.toHaveBeenCalled()
     // The settings page's Tab order saves in Browse's record and reorders the open panel.
     const tab = (plugin as unknown as { tabs: Array<{ containerEl: HTMLElement; onshow(): void; onhide(): void }> }).tabs[0]
     document.body.append(tab.containerEl); tab.onshow()

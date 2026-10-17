@@ -2,12 +2,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FavoritesController } from './controller'
 import { FavoritesRuntime } from './favorites-runtime'
-import { applyFavoritesOperation, createFavoritesState, type FavoritesOperation } from './model'
+import { applyFavoritesOperation, createFavoritesState, UNGROUPED_GROUP_ID, type FavoritesOperation } from './model'
 import { replayFavoritesDraft, type FavoritesDraft } from './editor-state'
 
 afterEach(() => { vi.useRealTimers() })
 
-function fixture(options: { readHistory?: () => Promise<unknown>; historyAvailable?: () => boolean; historyTimeoutMilliseconds?: number; historyMinIntervalMilliseconds?: number; isVisible?: () => boolean } = {}) {
+function fixture(options: { readHistory?: () => Promise<unknown>; historyAvailable?: () => boolean; historyTimeoutMilliseconds?: number; historyMinIntervalMilliseconds?: number; isVisible?: () => boolean; pollMilliseconds?: number } = {}) {
   let saved = createFavoritesState()
   let changed = () => {}
   const current = { file: 'C:\\Fixture\\note.md', folder: 'C:\\Fixture' }
@@ -63,6 +63,39 @@ describe('Favorites native runtime', () => {
       expect(listener).toHaveBeenCalledOnce(); expect(f.runtime.snapshot.history.entries).toEqual([])
     } finally { f.runtime.dispose() }
   })
+  it('publishes nothing when the storage poll finds nothing new, and each real change once', async () => {
+    vi.useFakeTimers()
+    const f = fixture({ pollMilliseconds: 2000 })
+    await f.runtime.start(); await vi.advanceTimersByTimeAsync(0)
+    const listener = vi.fn(); f.runtime.subscribe(listener); listener.mockClear()
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(f.store.read.mock.calls.length).toBeGreaterThanOrEqual(4)
+    expect(listener).not.toHaveBeenCalled()
+    // Another window saves a Favorite to the shared database.
+    await f.store.update({ type: 'favorite:add', kind: 'folder', path: 'C:/Fixture/Other', groupId: UNGROUPED_GROUP_ID })
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(listener).toHaveBeenCalledOnce()
+    // Typora opens another file.
+    listener.mockClear(); f.current.file = 'C:\\Fixture\\other.md'; f.emit()
+    expect(listener).toHaveBeenCalledOnce()
+    expect(listener.mock.calls[0][0].current.file).toBe('C:/Fixture/other.md')
+    f.runtime.dispose()
+  })
+
+  it('still publishes a failed read, its recovery, and a change that saves nothing new', async () => {
+    const f = fixture(); await f.runtime.start()
+    const listener = vi.fn(); f.collection.subscribe(listener); listener.mockClear()
+    f.store.read.mockRejectedValueOnce(new Error('Synthetic read failure'))
+    await f.collection.refresh().catch(() => {})
+    expect(listener).toHaveBeenCalledOnce(); expect(f.collection.error).toBe('Synthetic read failure')
+    await f.collection.refresh()
+    expect(listener).toHaveBeenCalledTimes(2); expect(f.collection.error).toBeUndefined()
+    // A preference set to its current value is still a confirmed save.
+    await f.collection.change({ type: 'favorites:preferences', patch: { layout: f.collection.state.preferences.layout } })
+    expect(listener).toHaveBeenCalledTimes(3)
+    f.runtime.dispose()
+  })
+
   it('never reads Typora Recent from the storage poll', async () => {
     vi.useFakeTimers()
     const readHistory = vi.fn(async () => ({ files: [], folders: [] }))

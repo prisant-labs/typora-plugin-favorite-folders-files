@@ -13,6 +13,28 @@ export type FavoritesMigration =
   | { state: FavoritesState; migrated: true; recovery: State }
 
 /**
+ * structuredClone where it exists. Older macOS WebKit lacks it, so the fallback copies what a v1
+ * record can hold: plain objects, arrays, dates and primitives, cycles included. Any other object
+ * is kept by reference, which is safe because the recovery copy is only written, never changed.
+ */
+function cloneRecord(value: unknown, copies = new Map<object, unknown>()): unknown {
+  if (typeof structuredClone === 'function') return structuredClone(value)
+  if (value === null || typeof value !== 'object') return value
+  if (copies.has(value)) return copies.get(value)
+  if (value instanceof Date) return new Date(value.getTime())
+  const prototype = Object.getPrototypeOf(value)
+  if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) return value
+  // The original length keeps trailing holes, and defining each key keeps an own "__proto__" field,
+  // which plain assignment would treat as the prototype setter.
+  const copy: object = Array.isArray(value) ? new Array(value.length) : {}
+  copies.set(value, copy)
+  for (const key of Object.keys(value)) {
+    Object.defineProperty(copy, key, { value: cloneRecord((value as Record<string, unknown>)[key], copies), writable: true, enumerable: true, configurable: true })
+  }
+  return copy
+}
+
+/**
  * Convert only validated v1 pins. Legacy recent-only rows stay exclusively in
  * the recovery copy; native Recent must never be reconstructed from them.
  */
@@ -25,7 +47,7 @@ export function migrateToFavorites(value: unknown, platform: Platform): Favorite
   const legacy = validateState(value, platform)
   // The validated view drives migration; recovery retains every original
   // structured-cloneable field, including extensions unknown to this version.
-  const recovery = structuredClone(value) as State
+  const recovery = cloneRecord(value) as State
   const state = createFavoritesState()
   state.favorites = legacy.items.filter(item => item.pinned).map(item => ({
     id: item.id,
