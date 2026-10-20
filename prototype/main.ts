@@ -6,7 +6,7 @@ import { replayFavoritesDraft } from '../src/editor-state'
 import { FavoritesPanelRenderer } from '../src/favorites-panel'
 import { favoritesRibbonIcon } from '../src/panel'
 import { normalizeHistory, type HistoryInput } from '../src/native-history'
-import { renderSettings } from '../src/settings-ui'
+import { renderSettings, type BrowseSettingError } from '../src/settings-ui'
 import { buildUpdateConfirmation } from '../src/update-confirmation'
 
 const INSTALLED = '0.2.0'
@@ -55,6 +55,15 @@ const browseSource: BrowseSource = {
 }
 let browseRecord: BrowseRecord
 let browse: BrowseController | undefined
+// The settings page's typed root path and message, which the Favorites settings tab keeps across redraws in Typora.
+let rootInput = ''
+let browseError: BrowseSettingError | undefined
+/** Fixture-only stand-in for Typora's folder dialog: it picks the first synthetic folder that is not yet a saved root. */
+async function chooseFolder() {
+  const choice = ['/Volumes/Archive', '/Home/Notes', '/Volumes/Travel Drive'].find(path => !browseRecord.roots.includes(path))
+  status.textContent = choice ? `Simulated folder chooser: picked ${choice}. In Typora, this is Typora's own folder dialog.` : 'Simulated folder chooser: cancelled.'
+  return choice
+}
 function openUpdate() {
   const dialog = document.querySelector<HTMLDialogElement>('#update-dialog')!, version = update
   if (!version) return
@@ -92,6 +101,7 @@ function createRenderer() { return new FavoritesPanelRenderer(mount, {
     toggle: (key, path) => browse!.toggle(key, path), setActive: active => browse!.setActive(active), setCollapsed: collapsed => browse!.setCollapsed(collapsed),
     addRoot: path => browse!.addRoot(path), removeRoot: path => browse!.removeRoot(path), saveRoots: change => browse!.saveRoots(change),
   },
+  chooseFolder,
 }) }
 function render() {
   renderer.update({ state, current, unavailable, error, platform: 'darwin', history: normalizeHistory(nativeFixture, 'darwin'), historySource: { available: true, loading: false }, writable: true, update: update ? { version: update } : undefined, browse: browse?.snapshot })
@@ -130,7 +140,7 @@ function fixture(name: string) {
   if (name === 'per-kind') nativeFixture = { ...nativeFixture, order: 'per-kind', entries: nativeFixture.entries!.map(({ kind, path }) => ({ kind, path })) }
   update = name === 'update-available' ? '0.2.1' : undefined
   // Fixture-only Browse record and folders; the Browse controller is production code.
-  browse?.dispose()
+  browse?.dispose(); rootInput = ''; browseError = undefined
   browseRecord = normalizeBrowseRecord({ roots: name === 'empty' ? [] : ['/Projects', '/Writing'], expanded: name === 'empty' ? [] : ['folder:/Projects', 'folder:/Projects/Atlas'] }, 'darwin')
   browse = new BrowseController({
     read: async () => cloneBrowseRecord(browseRecord),
@@ -152,6 +162,11 @@ function syncSettings() {
     updates: { enabled: checkForUpdates, setEnabled(enabled) { checkForUpdates = enabled; syncSettings() } },
     // The production Browse controller keeps the order; render() redraws this page when it changes.
     tabs: browse && { order: browse.snapshot.record.order, writable: browse.snapshot.writable, setOrder: order => browse!.setOrder(order) },
+    browse: browse && {
+      ...browse.roots, platform: 'darwin', current: current.folder, input: rootInput, error: browseError, choose: chooseFolder,
+      setInput: value => { rootInput = value }, setError: (next, redraw = true) => { browseError = next; if (redraw) syncSettings() },
+      save: change => browse!.saveRoots(change),
+    },
   })
 }
 document.querySelector('#theme')!.addEventListener('change', event => { document.documentElement.dataset.theme = (event.target as HTMLSelectElement).value })

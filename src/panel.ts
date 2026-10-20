@@ -1,3 +1,4 @@
+import type { PanelTab } from './browse-store'
 import { locationId, selectLocations, type Location, type LocationKind, type Operation, type Platform, type State } from './model'
 
 export interface PanelSnapshot {
@@ -30,7 +31,16 @@ const paths: Record<string, string> = {
   views: 'M4 5h16v14H4Z M4 10h16 M10 10v9',
   update: 'M12 19V6 m-6 6 6-6 6 6',
   home: 'M4 11l8-7 8 7 M6 9.5V20h12V9.5 M10 20v-6h4v6', drive: 'M3 14h18v6H3Z M3 14l3-9h12l3 9 M7 17h.1',
+  // Shown and hidden Home or Drives on the roots pages.
+  eye: 'M2.5 12C4.5 8 8 5.5 12 5.5s7.5 2.5 9.5 6.5c-2 4-5.5 6.5-9.5 6.5S4.5 16 2.5 12Z M14.5 12a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0',
+  'eye-off': 'M2.5 12C4.5 8 8 5.5 12 5.5s7.5 2.5 9.5 6.5c-2 4-5.5 6.5-9.5 6.5S4.5 16 2.5 12Z M14.5 12a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0 M4 4l16 16',
+  // Eight teeth around a hub: Browse's own settings, distinct from the header's Core options sliders.
+  gear: 'M10.1 5.3 10.3 2.5h3.4l.2 2.8 1.5.6 2.1-1.8 2.4 2.4-1.8 2.1.6 1.5 2.8.2v3.4l-2.8.2-.6 1.5 1.8 2.1-2.4 2.4-2.1-1.8-1.5.6-.2 2.8h-3.4l-.2-2.8-1.5-.6-2.1 1.8-2.4-2.4 1.8-2.1-.6-1.5-2.8-.2v-3.4l2.8-.2.6-1.5-1.8-2.1 2.4-2.4 2.1 1.8Z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
+  // A folder with two folders branching below it: the Browse tree, distinct from a single folder row.
+  tree: 'M3 2.5h3.5L8 4h4v4.5H3Z M5.5 8.5V19H11 M5.5 12H11 M11 9.5h3.5L16 11h5v3.5H11Z M11 16.5h3.5L16 18h5v3.5H11Z',
 }
+/** Each collection's mark, on its tab, its Stacked section heading and the Tab order setting. */
+export const TAB_ICONS: Readonly<Record<PanelTab, string>> = Object.freeze({ favorites: 'star', recent: 'clock', browse: 'tree' })
 export function icon(name: string): SVGSVGElement {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
   svg.setAttribute('viewBox', '0 0 24 24')

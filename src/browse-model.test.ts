@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_BROWSE } from './browse-store'
-import { browseKey, browseRows, browseTops, DRIVES_KEY, folderName, type BrowseFolders } from './browse-model'
+import { browseKey, browsePlaces, browseRows, browseTops, DRIVES_KEY, folderName, placeId, splitPlaces, withRoot, type BrowseFolders } from './browse-model'
 
 const record = (patch: Partial<typeof DEFAULT_BROWSE>) => ({ ...DEFAULT_BROWSE, ...patch })
 
@@ -23,6 +23,21 @@ describe('Browse tree', () => {
     expect(browseTops(record({ home: false }), '/Home', 'darwin')).toEqual([{ key: DRIVES_KEY, kind: 'drives', name: 'Volumes' }])
     // Home is left out when Typora cannot say where it is.
     expect(browseTops(record({ drives: false }), undefined, 'darwin')).toEqual([])
+  })
+
+  it('puts Home and the drives where the user placed them, and skips a hidden one without moving the rest', () => {
+    const placed = record({ roots: ['/Synthetic/Atlas', '/Synthetic/Beacon'], tops: ['home', 'root', 'drives', 'root'] })
+    expect(browseTops(placed, '/Home', 'darwin').map(top => top.name)).toEqual(['Home', 'Atlas', 'Volumes', 'Beacon'])
+    expect(browseTops({ ...placed, home: false }, '/Home', 'darwin').map(top => top.name)).toEqual(['Atlas', 'Volumes', 'Beacon'])
+  })
+
+  it('lists roots, Home and the drives as one arrangeable list, and splits it back for saving', () => {
+    const places = browsePlaces(['/Synthetic/Atlas', '/Synthetic/Beacon'], ['home', 'root', 'drives', 'root'])
+    expect(places).toEqual([{ kind: 'home' }, { kind: 'root', path: '/Synthetic/Atlas' }, { kind: 'drives' }, { kind: 'root', path: '/Synthetic/Beacon' }])
+    expect(places.map(place => placeId(place, 'darwin'))).toEqual(['home', 'folder:/Synthetic/Atlas', 'drives', 'folder:/Synthetic/Beacon'])
+    expect(splitPlaces([...places].reverse())).toEqual({ roots: ['/Synthetic/Beacon', '/Synthetic/Atlas'], tops: ['root', 'drives', 'root', 'home'] })
+    // A root added without a place follows the last placed root.
+    expect(browsePlaces(['/Synthetic/Atlas', '/Synthetic/Beacon'], ['home', 'root', 'drives']).map(place => place.kind)).toEqual(['home', 'root', 'root', 'drives'])
   })
 
   it('shows collapsed tops only, and asks for the listings that expanded folders need', () => {
@@ -74,5 +89,16 @@ describe('Browse tree', () => {
     expect(new Set(ids).size).toBe(ids.length)
     // Both copies of the folder share one expansion key.
     expect(rows[0].key).toBe(rows[4].key)
+  })
+})
+
+describe('Adding a root', () => {
+  it('normalizes a typed or chosen folder, and refuses a relative path or a repeat', () => {
+    expect(withRoot(['C:/Projects'], '  D:\\Notes\\Archive\\ ', 'win32')).toEqual({ roots: ['C:/Projects', 'D:/Notes/Archive'] })
+    expect(withRoot(['C:/Projects'], '\\\\server\\share\\notes', 'win32')).toEqual({ roots: ['C:/Projects', '//server/share/notes'] })
+    expect(withRoot(['C:/Projects'], 'c:\\projects', 'win32')).toEqual({ error: 'That folder is already a root.' })
+    expect(withRoot([], 'Notes', 'win32')).toEqual({ error: 'Enter a full folder path, such as D:\\Notes.' })
+    expect(withRoot(['/Projects'], '/Projects/', 'darwin')).toEqual({ error: 'That folder is already a root.' })
+    expect(withRoot([], '~/Notes', 'darwin')).toEqual({ error: 'Enter a full folder path, such as /Volumes/Notes.' })
   })
 })

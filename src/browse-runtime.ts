@@ -1,6 +1,6 @@
 import { BrowseListError, type BrowseSource } from './browse-fs'
-import { browseRows, browseTops, DRIVES_KEY, folderName, type BrowseFolder, type BrowseFolders } from './browse-model'
-import { cloneBrowseRecord, DEFAULT_BROWSE, normalizeBrowseRecord, type BrowseRecord, type PanelTab } from './browse-store'
+import { browsePlaces, browseRows, browseTops, DRIVES_KEY, folderName, splitPlaces, type BrowseFolder, type BrowseFolders } from './browse-model'
+import { cloneBrowseRecord, DEFAULT_BROWSE, normalizeBrowseRecord, normalizeTops, type BrowseRecord, type BrowseTopKind, type PanelTab } from './browse-store'
 import { locationId, normalizePath, type Platform } from './model'
 
 export interface BrowseRecordStore {
@@ -17,7 +17,8 @@ export interface BrowseSnapshot {
   /** The record has been read, so changes can be saved. */
   writable: boolean
 }
-export interface BrowseRootsChange { roots: string[]; home: boolean; drives: boolean }
+/** The roots, where Home and Drives sit among them, and whether each is shown. */
+export interface BrowseRootsChange { roots: string[]; tops: BrowseTopKind[]; home: boolean; drives: boolean }
 const SAVE_FAILED = 'Browse settings could not be saved.'
 const MAX_CACHED = 300
 
@@ -61,6 +62,12 @@ export class BrowseController {
   /** The tab order and whether it can be saved, without copying every folder listing as `snapshot` does. */
   get tabs(): { order: PanelTab[]; writable: boolean } {
     return { order: [...this.record.order], writable: this.ready && !this.disposed }
+  }
+
+  /** The roots and the Home and Drives choices, for the settings page, without the folder listings. */
+  get roots(): BrowseRootsChange & { writable: boolean; homeFolder?: string } {
+    const { roots, tops, home, drives } = this.record
+    return { roots: [...roots], tops: [...tops], home, drives, ...(this.home ? { homeFolder: this.home } : {}), writable: this.ready && !this.disposed }
   }
 
   subscribe(listener: (snapshot: BrowseSnapshot) => void): () => void {
@@ -185,19 +192,22 @@ export class BrowseController {
   setCollapsed(collapsed: boolean) { return this.write(record => ({ ...record, collapsed })) }
   setOrder(order: PanelTab[]) { return this.write(record => ({ ...record, order: [...order] })) }
 
+  /** Adds a root after the other roots. Home and Drives keep their places. */
   async addRoot(path: string): Promise<void> {
-    const root = normalizePath(path, this.platform)
-    await this.write(record => ({ ...record, roots: [...record.roots, root] }))
+    const root = normalizePath(path, this.platform), id = locationId('folder', root, this.platform)
+    await this.write(record => record.roots.some(candidate => locationId('folder', candidate, this.platform) === id) ? record
+      : { ...record, ...splitPlaces(browsePlaces([...record.roots, root], record.tops)) })
   }
 
+  /** Removes a root. Home and Drives keep their places among the roots that are left. */
   async removeRoot(path: string): Promise<void> {
     const id = locationId('folder', path, this.platform)
-    await this.write(record => ({ ...record, roots: record.roots.filter(root => locationId('folder', root, this.platform) !== id) }))
+    await this.write(record => ({ ...record, ...splitPlaces(browsePlaces(record.roots, record.tops).filter(place => place.kind !== 'root' || locationId('folder', place.path, this.platform) !== id)) }))
   }
 
   async saveRoots(change: BrowseRootsChange): Promise<void> {
     const roots = change.roots.map(root => normalizePath(root, this.platform))
-    await this.write(record => ({ ...record, roots, home: change.home, drives: change.drives }))
+    await this.write(record => ({ ...record, roots, tops: normalizeTops(change.tops, roots.length), home: change.home, drives: change.drives }))
   }
 
   dispose(): void {

@@ -3,7 +3,59 @@
 All notable changes to Favorites for Typora are recorded here. Versions follow
 [semantic versioning](https://semver.org/).
 
-## 0.2.0 (2026-10-17)
+## Unreleased
+
+### Added
+
+- **Choose folder…** on **Manage Browse roots** opens Typora's own folder
+  dialog and adds the folder you pick as a root. On Windows, the folder is not
+  added to the Windows Recent list. Tried in Typora on Windows. On macOS it
+  uses a Typora call that has not been tried on a Mac.
+- **Home** and **Drives** (**Volumes**) can sit anywhere among your roots. On
+  **Manage Browse roots**, they are in the list with the roots, and you drag
+  them or move them with arrows like a root. An eye button hides or shows each
+  one, in place of the **Home folder** and **Drives** checkboxes, and a hidden
+  one stays in the list, dimmed. Favorites 0.2.0 does not keep these places: if
+  a 0.2.0 window saves Browse, Home and Drives go back to after the roots. No
+  root is lost.
+- **Browse settings** on the settings page: a **Roots** row with the same list
+  of root folders, Home and Drives, with arrows, a button to remove a root, and
+  the eye buttons; and an **Add a root** row with **Choose folder…**, the folder
+  Typora has open, or a typed path. Each change is saved at once.
+
+### Changed
+
+- Each collection now has an icon: a star for **Favorites**, a clock for
+  **Recent** and a folder tree for **Browse**. The icon appears on the tab,
+  on the **Stacked** section heading and in the **Tab order** setting. When
+  the sidebar is too narrow for three names and three icons, about 245 pixels
+  or less, the tabs show their names only.
+- **Manage roots** is now a gear at the right end of the **Views** row, shown
+  while the **Browse** tab is selected, instead of a text button beside
+  **Views**. Recent shows its order and Favorites its sorting in the same
+  place. In the **Stacked** layout, the gear sits at the end of the **Browse**
+  section heading.
+- On **Manage Browse roots**, the ways to add a root sit under their own **Add
+  a root** heading, below the list.
+- **Messages appear where the problem is.** On the editing pages, a message
+  about a field, such as a path that is not a full folder path or an
+  unfinished group name, appears right below that field. A message about a
+  group deletion waiting for confirmation appears below the confirmation. A
+  failed **Save** appears beside the **Save** button. Before, every message
+  appeared at the bottom of the page.
+- On the settings page, a setting that could not be saved shows its message
+  in its own row, not at the top of the page.
+- The path field on **Manage Browse roots** is labeled **Or type its full
+  path** when other ways to add a root are shown above it.
+- The README, the user guide and the native test checklist now say that Browse
+  was used in Typora on Windows before 0.2.0 was published. It is still
+  untested on macOS.
+- For contributors: `CONTRIBUTING.md` explains how to try a build in Typora,
+  and why a vault should hold only one copy of Favorites. `AGENTS.md` names the folder dialog
+  calls Favorites may use, and says that a key added to the `browse` record
+  must be safe to lose, because a 0.2.0 window drops it when it saves.
+
+## 0.2.0 (2026-10-20)
 
 ### Added
 
@@ -14,7 +66,8 @@ All notable changes to Favorites for Typora are recorded here. Versions follow
   to open it. A folder's **⋯** menu opens it as Typora's folder or adds it to
   your roots. Arrow keys move through the tree. Browse lists folders and
   Markdown files only, hides hidden and system folders, and never changes
-  anything on disk. Not yet tested in Typora.
+  anything on disk. Used in Typora on Windows before release; not yet tested
+  on macOS.
 - **Manage roots** page: add a root by its path or from the folder Typora has
   open, reorder roots by dragging their grip or with arrows, remove roots, and
   show or hide Home and Drives. Roots can be on any drive, including a whole

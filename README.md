@@ -40,17 +40,20 @@ choose, and stays put when Typora opens a file somewhere else.
 
 ![The Recent tab listing recent Markdown files](docs/images/recent.png)
 
-**Browse** (new, not yet tested in Typora)
+**Browse** (new; used in Typora on Windows, not yet tested on macOS)
 
-- A folder tree that starts at **root folders** you choose, followed by your
-  **Home** folder and your **Drives** (**Volumes** on macOS). Typora's own file
-  tree follows whichever file you open; Browse stays where you left it.
+- A folder tree of **root folders** you choose, with your **Home** folder and
+  your **Drives** (**Volumes** on macOS) in whatever places you give them.
+  Typora's own file tree follows whichever file you open; Browse stays where
+  you left it.
 - Click a folder to expand it, one level at a time. Browse shows folders and
   Markdown files only, and hides hidden and system folders.
 - Click a Markdown file to open it. A folder's **⋯** menu can make it the
   folder Typora has open (**Open in Typora**), or add it to your roots.
-- **Manage roots** adds roots by path or from the folder that is open, puts
-  them in order by dragging or with arrows, and hides Home or Drives.
+- The **gear** at the right end of the **Views** row manages the roots: add
+  one with Typora's folder dialog, from the folder that is open, or by its
+  path; put the roots, Home and Drives in order by dragging or with arrows; and
+  hide Home or Drives. The settings page has the same choices under **Browse**.
 - Roots can sit on any drive. **Drives** lists every drive letter, including
   USB and mapped network drives; a network share without a letter can be a root.
 
@@ -131,7 +134,8 @@ to Community Plugin "vaults", and an FAQ.
 - Recent is read from Typora while the panel is visible, or when you run the
   diagnostics command. It is kept in memory and never written anywhere. The
   diagnostics report holds no paths or names.
-- Browse saves your root folders, its Home and Drives choices, which folders
+- Browse saves your root folders, where Home and Drives sit and whether they
+  are shown, which folders
   are expanded, and the tab order, in the same local database. It reads a folder's
   contents only while the panel is visible, keeps them in memory, and never
   changes anything on disk. On macOS, each folder it reads runs one `ls`
@@ -152,8 +156,11 @@ to Community Plugin "vaults", and an FAQ.
   Recent on macOS is new in 0.1.3. It reads two macOS channels found in
   Typora's page code. On a Mac, its Files and Folders tabs matched Typora's own
   Recent list; the rest of the macOS Recent checks are still in progress.
-- **Browse** is new and has not yet been tested in Typora on either platform.
-  On macOS, reading folders such as Documents or Desktop may make macOS ask
+- **Browse** was used in Typora on Windows before 0.2.0 was published, and
+  **Choose folder…** was tried there too. Browse has not yet been tested in
+  Typora on macOS, and the rest of its
+  [native checks](test/native/README.md#browse) are still in progress. On
+  macOS, reading folders such as Documents or Desktop may make macOS ask
   whether Typora may access them.
 - **Recently opened** sorting needs a date on every entry in Typora's Recent
   list. When some entries have none, it stays unavailable and each Recent tab

@@ -29,10 +29,16 @@ and IME composition across redraws. Clicks go back through
 Editing pages, such as Manage groups and Manage Browse roots, work on a draft.
 Nothing is saved until **Save**. Favorites drafts are lists of operations
 (`editor-state.ts`) that are replayed in one transaction. The roots page keeps
-its unsaved roots on the page itself.
+its unsaved roots on the page itself. A message about a field or a pending
+confirmation appears right below that control, and a failed Save appears
+beside the Save button.
 
 The settings page (`settings.ts`, `settings-ui.ts`) edits the same
-controllers. Its live preview (`settings-preview.ts`) runs the real renderer
+controllers, and saves each change at once. A failed change shows its message
+in that setting's own row; only a storage-wide problem uses the status line at
+the top. The page is drawn again from the controllers after every change, so
+`settings.ts` keeps a typed Browse root path and the last message across
+redraws. Its live preview (`settings-preview.ts`) runs the real renderer
 over synthetic Favorites, Recent entries and folders, and never touches saved
 data.
 
@@ -52,7 +58,8 @@ data.
 | `recent-diagnostics.ts`, `recent-diagnostics-ui.ts` | The path-free **Copy Recent diagnostics** report |
 | `browse-store.ts` | The `browse` record and its normalization |
 | `browse-fs.ts` | Folder listing: Node's `fs` on Windows, a quoted `ls` on macOS |
-| `browse-model.ts` | Pure tree logic: top rows, visible rows, and folders that still need a listing |
+| `browse-model.ts` | Pure tree logic: top rows, visible rows, folders that still need a listing, adding a root (`withRoot`), and the arrangeable list of roots, Home and Drives (`browsePlaces`, `splitPlaces`) |
+| `folder-chooser.ts` | Typora's own folder dialog, for adding a Browse root |
 | `browse-runtime.ts` | `BrowseController`: listings, refreshes and optimistic saves |
 | `update-check.ts`, `update-store.ts`, `update-confirmation.ts`, `update-dialog.ts` | The update pill and its daily check |
 | `favorites-panel.ts` | The sidebar renderer, shared by Typora, the preview page and the settings preview |
@@ -75,7 +82,7 @@ window on the computer shares it. The store holds these records:
 | `current` | `FavoritesIndexedDbStore` | Favorites, groups, their order and the Favorites preferences |
 | `recovery:v1` | The v1 upgrade | The original v1 record, copied once in the upgrade's transaction |
 | `updates` | `FavoritesUpdateStore` | **Check for updates automatically**, and the last check |
-| `browse` | `BrowseStore` | Roots, the Home and Drives choices, expanded folders, the selected Browse tab, the collapsed Stacked section, and the tab order |
+| `browse` | `BrowseStore` | Roots, where Home and Drives sit among them (`tops`), the Home and Drives choices, expanded folders, the selected Browse tab, the collapsed Stacked section, and the tab order |
 
 **The compatibility rule.** Version 0.1.4 accepts only an exact set of keys in
 the `current` preferences. A key it does not know makes it reject the whole
@@ -83,6 +90,12 @@ record, and that window loses its Favorites. So a new setting never goes into
 `current`. It goes into its own record through `SharedRecordStore`, which older
 versions never read. This is why Browse's selected tab lives in `browse` as
 `active`, and not in the Favorites preferences' `activeTab`.
+
+Version 0.2.0 also reads `browse`, and it keeps only the keys it knows when it
+saves. So the roots keep their own order in `roots`, which 0.2.0 understands,
+and `tops` only says where Home and Drives sit among them, such as
+`['root', 'home', 'root', 'drives']`. When a 0.2.0 window saves Browse, Home and
+Drives go back to after the roots, but no root is lost.
 
 Each `SharedRecordStore` record normalizes what it reads. A missing or damaged
 value becomes its default, and a read never fails. The `current` record is
@@ -108,6 +121,8 @@ something.
 | Recent on macOS | Typora's folder-menu call and its Quick Open panel (`mac-recent.ts`) |
 | Browse on Windows | `reqnode('fs').promises`: `readdir` with file types, and `stat` for links and drives |
 | Browse on macOS | `bridge.callHandler('controller.runCommand')` running `/bin/ls -1pL` on the quoted folder path |
+| Choose a Browse root (Windows) | `JSBridge.invoke('dialog.showOpenDialog')` with `openDirectory` and `dontAddToRecent`, as Typora picks an image folder |
+| Choose a Browse root (macOS) | `bridge.callHandler('path.selectFolderOrFile', { dir: true })`, as Typora picks an export folder. Not `controller.selectFolder`, which switches the open folder |
 | Home folder | Core's `os.homedir()` |
 | Updates | Core's plugin manager (`app.plugins`): its Marketplace data and `updatePlugin` |
 

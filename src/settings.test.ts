@@ -102,6 +102,45 @@ describe('native shared settings', () => {
     tab.dispose(); browse.dispose(); controller.dispose()
   })
 
+  it('edits Browse roots through Browse, and keeps a typed path and its message across redraws', async () => {
+    const state = createFavoritesState()
+    const controller = new FavoritesController({ read: async () => state, update: async operation => applyFavoritesOperation(state, operation, 'win32'), commitDraft: async () => state, close: async () => {} }, 'win32')
+    await controller.start()
+    let record = normalizeBrowseRecord({ roots: ['C:/Projects'] }, 'win32'), fail = false
+    const browse = new BrowseController({
+      read: async () => cloneBrowseRecord(record),
+      update: async change => { if (fail) throw new Error('synthetic write failure'); return record = normalizeBrowseRecord(change(cloneBrowseRecord(record)), 'win32') },
+      close: async () => {},
+    }, undefined, 'win32', { pollMilliseconds: 0 })
+    await browse.start()
+    const tab = new QuickAccessSettingTab(controller, { browse: {
+      platform: 'win32', state: () => browse.roots, subscribe: listener => browse.subscribe(() => listener()),
+      save: change => browse.saveRoots(change), current: () => 'C:/Notes',
+    } })
+    document.body.append(tab.containerEl); tab.onshow()
+    const section = () => tab.containerEl.querySelector<HTMLElement>('[data-settings-section="browse"]')!
+    const field = () => section().querySelector<HTMLInputElement>('input[aria-label="Folder path"]')!
+    const type = (value: string) => { field().value = value; field().dispatchEvent(new Event('input', { bubbles: true })) }
+    const add = () => section().querySelector<HTMLButtonElement>('button[aria-label="Add folder"]')!.click()
+    const error = () => section().querySelector('[data-browse-setting="add"] .qa-settings__error')?.textContent
+    type('D:\\Archive'); add()
+    await vi.waitFor(() => expect(record.roots).toEqual(['C:/Projects', 'D:/Archive']))
+    await vi.waitFor(() => expect([...section().querySelectorAll('.qa-settings__root-name')].map(node => node.textContent)).toEqual(['Projects', 'Archive', 'Home', 'Drives']))
+    fail = true; type('D:\\Other'); add()
+    await vi.waitFor(() => expect(error()).toBe('Browse settings could not be saved.'))
+    expect(field().value).toBe('D:\\Other')
+    // A redraw for another setting keeps both.
+    fail = false; await controller.change({ type: 'favorites:preferences', patch: { layout: 'stacked' } })
+    expect(tab.containerEl.querySelector<HTMLSelectElement>('[aria-label="Layout"]')!.value).toBe('stacked')
+    expect(error()).toBe('Browse settings could not be saved.'); expect(field().value).toBe('D:\\Other')
+    // The next change clears the message.
+    add()
+    await vi.waitFor(() => expect(record.roots).toEqual(['C:/Projects', 'D:/Archive', 'D:/Other']))
+    await vi.waitFor(() => expect(error()).toBeUndefined())
+    expect(field().value).toBe('')
+    tab.dispose(); browse.dispose(); controller.dispose()
+  })
+
   it('refreshes Recent capability without a preference write and releases the subscription on hide', async () => {
     const state = createFavoritesState()
     const controller = new FavoritesController({ read: async () => state, update: async () => state, commitDraft: async () => state, close: async () => {} }, 'win32')

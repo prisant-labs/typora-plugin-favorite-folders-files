@@ -7,6 +7,7 @@ import { FavoritesPanelRenderer } from './favorites-panel'
 import { applyFavoritesOperation, createFavoritesState, UNGROUPED_GROUP_ID, type FavoritesOperation } from './model'
 import { replayFavoritesDraft, type FavoritesDraft } from './editor-state'
 import { normalizeHistory } from './native-history'
+import { icon } from './panel'
 
 const cleanups: Array<() => void> = []
 afterEach(() => { cleanups.splice(0).forEach(fn => fn()); document.body.replaceChildren(); vi.restoreAllMocks() })
@@ -25,7 +26,7 @@ function entries(folder: string): BrowseEntry[] {
   return names.map(name => name.endsWith('/') ? { kind: 'folder', name: name.slice(0, -1), path: `${folder}/${name.slice(0, -1)}` } : { kind: 'file', name, path: `${folder}/${name}` })
 }
 
-async function fixture(options: { record?: Partial<BrowseRecord>; source?: BrowseSource | null; layout?: 'tabs' | 'stacked' } = {}) {
+async function fixture(options: { record?: Partial<BrowseRecord>; source?: BrowseSource | null; layout?: 'tabs' | 'stacked'; chooseFolder?: (defaultPath?: string) => Promise<string | undefined> } = {}) {
   let state = createFavoritesState()
   const apply = (operation: FavoritesOperation) => { state = applyFavoritesOperation(state, operation, 'darwin') }
   apply({ type: 'favorite:add', kind: 'file', path: '/Projects/Roadmap.md', groupId: UNGROUPED_GROUP_ID })
@@ -43,7 +44,7 @@ async function fixture(options: { record?: Partial<BrowseRecord>; source?: Brows
   const actions = {
     change: vi.fn(async (op: FavoritesOperation) => { apply(op); render() }),
     commit: vi.fn(async (draft: FavoritesDraft) => { state = replayFavoritesDraft(state, draft, 'darwin'); render(); return state }),
-    open: vi.fn(), reveal: vi.fn(), settings: vi.fn(),
+    open: vi.fn(), reveal: vi.fn(), settings: vi.fn(), chooseFolder: options.chooseFolder,
     browse: {
       toggle: (key: string, path?: string) => browse.toggle(key, path), setActive: (active: boolean) => browse.setActive(active),
       setCollapsed: (collapsed: boolean) => browse.setCollapsed(collapsed), addRoot: (path: string) => browse.addRoot(path),
@@ -152,7 +153,7 @@ describe('Browse tab', () => {
   it('explains an empty Browse and a Typora window that cannot list folders', async () => {
     const empty = await fixture({ record: { active: true, roots: [], home: false, drives: false } })
     expect(empty.container.textContent).toContain('Add a root folder to browse from it.')
-    await empty.click('Manage roots')
+    await empty.click('Manage Browse roots')
     expect(empty.container.querySelector('h3')?.textContent).toBe('Manage Browse roots')
     const unavailable = await fixture({ record: { active: true }, source: null })
     expect(unavailable.container.textContent).toContain('Browsing folders isn\'t available in this Typora window.')
@@ -171,6 +172,56 @@ describe('Browse tab', () => {
     await f.click('Browse')
     expect(f.memory.record.collapsed).toBe(true); expect(f.rows()).toEqual([])
     expect(f.state.preferences).toMatchObject({ favoritesCollapsed: false, recentCollapsed: false })
+  })
+
+  it('marks each tab and each Stacked section with its collection\'s icon', async () => {
+    const shape = (svg: Element | null | undefined) => svg?.querySelector('path')?.getAttribute('d')
+    const expected = ['star', 'clock', 'tree'].map(name => shape(icon(name)))
+    expect(new Set(expected).size).toBe(3)
+    const tabs = await fixture()
+    const tabButtons = [...tabs.container.querySelectorAll('[role="tab"]')]
+    expect(tabButtons.map(node => node.textContent)).toEqual(['Favorites', 'Recent', 'Browse'])
+    expect(tabButtons.map(node => shape(node.querySelector(':scope > svg.qa-collection-icon')))).toEqual(expected)
+    // In the Stacked layout the icon follows the chevron, which alone turns when a section collapses.
+    const stacked = await fixture({ layout: 'stacked' })
+    const toggles = [...stacked.container.querySelectorAll('.qa-section-toggle')]
+    expect(toggles.map(node => node.textContent)).toEqual(['Favorites', 'Recent', 'Browse'])
+    for (const [index, toggle] of toggles.entries()) {
+      const [chevron, mark] = [...toggle.querySelectorAll(':scope > svg')]
+      expect(shape(chevron)).toBe(shape(icon('chevron'))); expect(chevron!.classList.contains('qa-collection-icon')).toBe(false)
+      expect(shape(mark)).toBe(expected[index]); expect(mark!.classList.contains('qa-collection-icon')).toBe(true)
+    }
+  })
+
+  it('puts the roots gear at the end of the Views row while Browse is shown, where each tab keeps its own controls', async () => {
+    const f = await fixture({ record: { active: true, roots: ['/Projects', '/Writing'] } })
+    const gear = f.button('Manage Browse roots'), toolbar = f.container.querySelector('.qa-toolbar')!
+    expect(gear.parentElement).toBe(toolbar); expect(toolbar.lastElementChild).toBe(gear)
+    expect(gear.querySelector('svg')).not.toBeNull(); expect(gear.textContent).toBe('')
+    // No heading row: the tree starts the Browse list.
+    expect(f.container.querySelector('.qa-browse-head')).toBeNull()
+    expect(f.container.querySelector('.qa-lists')!.firstElementChild!.classList.contains('qa-tree')).toBe(true)
+    await f.click('Manage Browse roots')
+    expect(f.container.querySelector('h3')?.textContent).toBe('Manage Browse roots')
+    await f.click('Back')
+    expect(document.activeElement).toBe(f.button('Manage Browse roots'))
+    // Favorites and Recent have controls of their own there instead, and search results have none.
+    await f.click('Recent'); expect(() => f.button('Manage Browse roots')).toThrow()
+    await f.click('Favorites'); expect(() => f.button('Manage Browse roots')).toThrow()
+    await f.click('Browse')
+    const search = f.container.querySelector<HTMLInputElement>('input[type="search"]')!
+    search.value = 'Atlas'; search.dispatchEvent(new Event('input', { bubbles: true })); await flush()
+    expect(() => f.button('Manage Browse roots')).toThrow()
+  })
+
+  it('puts the roots gear at the end of the Browse section heading in the Stacked layout, even when collapsed', async () => {
+    const f = await fixture({ layout: 'stacked' })
+    const heading = f.button('Manage Browse roots').closest('.qa-browse-head')!
+    expect(heading.querySelector('.qa-section-toggle')?.textContent).toBe('Browse')
+    expect(heading.lastElementChild).toBe(f.button('Manage Browse roots'))
+    await f.click('Browse')
+    expect(f.memory.record.collapsed).toBe(true)
+    expect(f.button('Manage Browse roots').closest('.qa-browse-head')).not.toBeNull()
   })
 
   it('orders the tabs, the arrow keys and the Stacked sections by the saved tab order', async () => {
@@ -203,42 +254,85 @@ describe('Browse tab', () => {
 describe('Manage Browse roots', () => {
   async function open() {
     const f = await fixture({ record: { active: true, roots: ['/Projects', '/Writing'] } })
-    await f.click('Manage roots')
+    await f.click('Manage Browse roots')
     const names = () => [...f.container.querySelectorAll('.qa-root-item .qa-edit-name')].map(node => node.textContent)
     return { ...f, names }
   }
 
   it('reorders, removes and adds roots, then saves them with the Home and drives choices', async () => {
     const f = await open()
-    expect(f.names()).toEqual(['Projects', 'Writing'])
+    expect(f.names()).toEqual(['Projects', 'Writing', 'Home', 'Volumes'])
     expect(f.button('Move up: Projects').disabled).toBe(true)
-    await f.click('Move up: Writing'); expect(f.names()).toEqual(['Writing', 'Projects'])
-    await f.click('Remove root: Writing'); expect(f.names()).toEqual(['Projects'])
+    await f.click('Move up: Writing'); expect(f.names()).toEqual(['Writing', 'Projects', 'Home', 'Volumes'])
+    await f.click('Remove root: Writing'); expect(f.names()).toEqual(['Projects', 'Home', 'Volumes'])
     const input = f.container.querySelector<HTMLInputElement>('input[aria-label="Folder path"]')!
     input.value = '/Archive/Notes/'; input.dispatchEvent(new Event('input', { bubbles: true }))
-    await f.click('Add folder'); expect(f.names()).toEqual(['Projects', 'Notes'])
-    f.container.querySelector<HTMLInputElement>('input[aria-label="Home folder"]')!.click()
+    // A new root joins the other roots, before Home and Volumes.
+    await f.click('Add folder'); expect(f.names()).toEqual(['Projects', 'Notes', 'Home', 'Volumes'])
+    await f.click('Hide Home')
     expect(f.container.querySelector('.qa-draft-state')?.textContent).toBe('Unsaved changes')
     await f.click('Save')
-    expect(f.actions.browse.saveRoots).toHaveBeenCalledWith({ roots: ['/Projects', '/Archive/Notes'], home: false, drives: true })
+    expect(f.actions.browse.saveRoots).toHaveBeenCalledWith({ roots: ['/Projects', '/Archive/Notes'], tops: ['root', 'root', 'home', 'drives'], home: false, drives: true })
     expect(f.memory.record).toMatchObject({ roots: ['/Projects', '/Archive/Notes'], home: false, drives: true })
     expect(f.container.querySelector('h3')).toBeNull()
   })
 
+  it('arranges Home and Volumes among the roots, and hides them instead of removing them', async () => {
+    const f = await open()
+    const row = (name: string) => [...f.container.querySelectorAll<HTMLElement>('.qa-root-item')].find(node => node.querySelector('.qa-edit-name')!.textContent === name)!
+    expect(f.button('Move down: Volumes').disabled).toBe(true)
+    expect(() => f.button('Remove root: Home')).toThrow(); expect(() => f.button('Remove root: Volumes')).toThrow()
+    expect(row('Home').querySelector('.qa-root-path')?.textContent).toBe('/Home')
+    await f.click('Move up: Home'); await f.click('Move up: Home')
+    expect(f.names()).toEqual(['Home', 'Projects', 'Writing', 'Volumes'])
+    // Hidden, Volumes keeps its place and says so; the same button shows it again.
+    f.button('Hide Volumes').focus(); await f.click('Hide Volumes')
+    expect(row('Volumes').classList.contains('qa-root-hidden')).toBe(true)
+    expect(row('Volumes').querySelector('.qa-root-path')?.textContent).toBe('Hidden')
+    expect(document.activeElement).toBe(f.button('Show Volumes'))
+    await f.click('Show Volumes'); expect(row('Volumes').classList.contains('qa-root-hidden')).toBe(false)
+    await f.click('Hide Volumes')
+    await f.click('Save')
+    expect(f.memory.record).toMatchObject({ roots: ['/Projects', '/Writing'], tops: ['home', 'root', 'root', 'drives'], home: true, drives: false })
+    expect(f.rows()).toEqual(['0:Home', '0:Projects', '0:Writing'])
+  })
+
+  it('separates the ways to add a root from the list under their own heading', async () => {
+    const f = await fixture({ record: { active: true, roots: ['/Writing'] }, chooseFolder: async () => undefined })
+    await f.click('Manage Browse roots')
+    const headings = [...f.container.querySelectorAll('.qa-page-section')]
+    expect(headings.map(node => node.textContent)).toEqual(['Roots', 'Add a root'])
+    const after = (node: Element, target: Element) => Boolean(node.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_PRECEDING)
+    for (const control of [f.button('Choose folder…'), f.button('Add current folder: Projects'), f.button('Add folder')]) {
+      expect(after(control, headings[1]!)).toBe(true)
+    }
+    for (const item of f.container.querySelectorAll('.qa-root-item')) expect(after(headings[1]!, item)).toBe(true)
+  })
+
+  it('keeps Home in the list when this window cannot say where it is', async () => {
+    const source: BrowseSource = { list: vi.fn(async (folder: string) => entries(folder)), drives: vi.fn(async () => []), home: () => undefined }
+    const f = await fixture({ record: { active: true }, source })
+    await f.click('Manage Browse roots')
+    const home = [...f.container.querySelectorAll<HTMLElement>('.qa-root-item')].find(node => node.querySelector('.qa-edit-name')!.textContent === 'Home')!
+    expect(home.querySelector('.qa-root-path')?.textContent).toBe('Not known in this Typora window')
+  })
+
   it('reorders roots by dragging a grip, and saves only on Save', async () => {
     const f = await fixture({ record: { active: true, roots: ['/Projects', '/Writing', '/Archive'] } })
-    await f.click('Manage roots')
+    await f.click('Manage Browse roots')
     const names = () => [...f.container.querySelectorAll('.qa-root-item .qa-edit-name')].map(node => node.textContent)
-    const body = f.container.querySelector<HTMLElement>('.qa-page-body')!
-    vi.spyOn(body, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 280, top: 0, bottom: 400 } as DOMRect)
-    const place = () => [...f.container.querySelectorAll<HTMLElement>('.qa-root-item')].forEach((row, index) => vi.spyOn(row, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 280, top: 40 + index * 50, bottom: 90 + index * 50 } as DOMRect))
+    // Each redraw builds new elements, so their places are given again before each drag.
+    const place = () => {
+      vi.spyOn(f.container.querySelector<HTMLElement>('.qa-page-body')!, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 280, top: 0, bottom: 400 } as DOMRect)
+      ;[...f.container.querySelectorAll<HTMLElement>('.qa-root-item')].forEach((row, index) => vi.spyOn(row, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 280, top: 40 + index * 50, bottom: 90 + index * 50 } as DOMRect))
+    }
     const pointer = (type: string, y: number) => new MouseEvent(type, { bubbles: true, clientX: 12, clientY: y })
     place()
     expect(f.button('Drag root: Archive').classList.contains('qa-drag-handle')).toBe(true)
     // Drop Archive on the lower half of Projects: it lands second.
     f.button('Drag root: Archive').dispatchEvent(pointer('pointerdown', 160))
     document.dispatchEvent(pointer('pointermove', 80)); document.dispatchEvent(pointer('pointerup', 80))
-    expect(names()).toEqual(['Projects', 'Archive', 'Writing'])
+    expect(names()).toEqual(['Projects', 'Archive', 'Writing', 'Home', 'Volumes'])
     expect(f.memory.record.roots).toEqual(['/Projects', '/Writing', '/Archive'])
     // Escape and a drop outside the page change nothing.
     place(); f.button('Drag root: Projects').dispatchEvent(pointer('pointerdown', 60))
@@ -246,30 +340,89 @@ describe('Manage Browse roots', () => {
     document.dispatchEvent(pointer('pointerup', 150))
     f.button('Drag root: Projects').dispatchEvent(pointer('pointerdown', 60))
     document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientX: -50, clientY: -50 }))
-    expect(names()).toEqual(['Projects', 'Archive', 'Writing'])
+    expect(names()).toEqual(['Projects', 'Archive', 'Writing', 'Home', 'Volumes'])
     expect(f.container.querySelector('.qa-dragging')).toBeNull()
+    // Volumes drags like a root: drop it on the upper half of Projects, and it leads.
+    place(); f.button('Drag root: Volumes').dispatchEvent(pointer('pointerdown', 260))
+    document.dispatchEvent(pointer('pointermove', 50)); document.dispatchEvent(pointer('pointerup', 50))
+    expect(names()).toEqual(['Volumes', 'Projects', 'Archive', 'Writing', 'Home'])
     await f.click('Save')
-    expect(f.memory.record.roots).toEqual(['/Projects', '/Archive', '/Writing'])
+    expect(f.memory.record).toMatchObject({ roots: ['/Projects', '/Archive', '/Writing'], tops: ['drives', 'root', 'root', 'root', 'home'] })
   })
 
   it('offers the current folder unless it is already a root', async () => {
     const f = await open()
     expect(() => f.button('Add current folder: Projects')).toThrow()
     await f.click('Remove root: Projects')
-    await f.click('Add current folder: Projects'); expect(f.names()).toEqual(['Writing', 'Projects'])
+    await f.click('Add current folder: Projects'); expect(f.names()).toEqual(['Writing', 'Projects', 'Home', 'Volumes'])
   })
 
-  it('rejects a relative or repeated path and keeps the typed text', async () => {
+  it('rejects a relative or repeated path beside the path field, and keeps the typed text', async () => {
     const f = await open()
-    const type = (value: string) => { const input = f.container.querySelector<HTMLInputElement>('input[aria-label="Folder path"]')!; input.value = value; input.dispatchEvent(new Event('input', { bubbles: true })) }
+    const field = () => f.container.querySelector<HTMLInputElement>('input[aria-label="Folder path"]')!
+    const type = (value: string) => { field().value = value; field().dispatchEvent(new Event('input', { bubbles: true })) }
+    const error = () => f.container.querySelector<HTMLElement>('.qa-page-error')
     type('Notes'); await f.click('Add folder')
-    expect(f.container.querySelector('.qa-page-error')?.textContent).toContain('full folder path')
-    expect(f.container.querySelector<HTMLInputElement>('input[aria-label="Folder path"]')!.value).toBe('Notes')
+    expect(error()?.textContent).toContain('full folder path')
+    expect(error()?.getAttribute('role')).toBe('alert')
+    // The message sits directly below the path field, never at the bottom of the page.
+    expect(error()?.previousElementSibling?.contains(field())).toBe(true)
+    expect(field().getAttribute('aria-invalid')).toBe('true')
+    expect(field().value).toBe('Notes')
+    // Typing clears it.
+    type('Notes/'); expect(error()).toBeNull(); expect(field().hasAttribute('aria-invalid')).toBe(false)
     type('/Projects/'); await f.click('Add folder')
-    expect(f.container.querySelector('.qa-page-error')?.textContent).toBe('That folder is already a root.')
-    // Unadded text blocks Save, like an unfinished group name.
-    await f.click('Save')
+    expect(error()?.textContent).toBe('That folder is already a root.')
+    expect(error()?.previousElementSibling?.contains(field())).toBe(true)
+    // Unadded text blocks Save, like an unfinished group name, and says so at the field.
+    type('/Archive'); await f.click('Save')
     expect(f.actions.browse.saveRoots).not.toHaveBeenCalled()
+    expect(error()?.textContent).toBe('Add the folder, or clear the path, before saving.')
+    expect(error()?.previousElementSibling?.contains(field())).toBe(true)
+    expect(document.activeElement).toBe(field())
+  })
+
+  it('adds a root with Typora\'s folder chooser, starting at the open folder', async () => {
+    const replies: Array<string | undefined> = ['/Archive/Notes', undefined, '/Projects/']
+    const chooseFolder = vi.fn(async () => replies.shift())
+    const f = await fixture({ record: { active: true, roots: ['/Projects', '/Writing'] }, chooseFolder })
+    await f.click('Manage Browse roots')
+    const names = () => [...f.container.querySelectorAll('.qa-root-item .qa-edit-name')].map(node => node.textContent)
+    await f.click('Choose folder…')
+    expect(chooseFolder).toHaveBeenCalledWith('/Projects')
+    expect(names()).toEqual(['Projects', 'Writing', 'Notes', 'Home', 'Volumes'])
+    expect(f.actions.browse.saveRoots).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(f.button('Choose folder…'))
+    // Cancelling the dialog changes nothing and says nothing.
+    await f.click('Choose folder…')
+    expect(names()).toEqual(['Projects', 'Writing', 'Notes', 'Home', 'Volumes']); expect(f.container.querySelector('.qa-page-error')).toBeNull()
+    await f.click('Choose folder…')
+    const error = f.container.querySelector<HTMLElement>('.qa-page-error')!
+    expect(error.textContent).toBe('That folder is already a root.')
+    // The chooser and the path field share one place for their messages: right below them.
+    expect(error.previousElementSibling?.querySelector('input[aria-label="Folder path"]')).not.toBeNull()
+    await f.click('Save')
+    expect(f.memory.record.roots).toEqual(['/Projects', '/Writing', '/Archive/Notes'])
+  })
+
+  it('reports a folder chooser that fails, and hides it where Typora offers none', async () => {
+    const f = await fixture({ record: { active: true }, chooseFolder: async () => { throw new Error('bridge gone') } })
+    await f.click('Manage Browse roots'); await f.click('Choose folder…')
+    expect(f.container.querySelector('.qa-page-error')?.textContent).toBe('Typora\'s folder chooser could not be opened. Type the folder\'s full path instead.')
+    const none = await fixture({ record: { active: true } })
+    await none.click('Manage Browse roots')
+    expect(() => none.button('Choose folder…')).toThrow()
+  })
+
+  it('reports a failed save beside the Save button and keeps the page open', async () => {
+    const f = await open()
+    f.actions.browse.saveRoots.mockRejectedValueOnce(new Error('Browse settings could not be saved.'))
+    await f.click('Remove root: Writing'); await f.click('Save')
+    const error = f.container.querySelector<HTMLElement>('.qa-page-error')!
+    expect(error.textContent).toBe('Browse settings could not be saved.')
+    expect(error.closest('.qa-page-footer')).not.toBeNull()
+    expect(f.container.querySelector('h3')?.textContent).toBe('Manage Browse roots')
+    expect(f.names()).toEqual(['Projects', 'Home', 'Volumes'])
   })
 
   it('asks before discarding changes', async () => {

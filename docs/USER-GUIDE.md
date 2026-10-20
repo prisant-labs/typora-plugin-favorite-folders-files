@@ -102,11 +102,12 @@ Recent**, split into **Files** and **Folders**.
 
 Browse is a folder tree that starts at folders you choose. Typora's own file
 tree shows the folder of whatever file you open last, and has no way up. Browse
-stays where you left it, whichever file Typora opens. Browse is new and has not
-yet been tested in Typora.
+stays where you left it, whichever file Typora opens. Browse has been used in
+Typora on Windows. It has not yet been tested in Typora on macOS.
 
-The tree starts with your **root folders**, in your order, then two built-in
-entries:
+The tree shows your **root folders** and two built-in entries, in the order
+you set on **Manage Browse roots**. Until you move them, the built-in entries
+come after your roots:
 
 - **Home**, your user folder, such as `C:\Users\<you>` or `/Users/<you>`.
   Favorites finds it for you. It is left out if Typora does not say where it
@@ -116,8 +117,8 @@ entries:
 
 Root folders are the starting points you choose; there is no separate home
 folder setting for Browse. Add a folder you work in, such as `D:\Notes`, as a
-root, and it appears at the top of the tree. You can have up to 50 roots, on any
-drives, in any order.
+root, and it appears after your other roots. You can have up to 50 roots, on
+any drives, in any order.
 
 ### More than one drive
 
@@ -155,15 +156,34 @@ drives, in any order.
 
 ### Manage roots
 
-**Manage roots**, beside **Views**, opens a page where you can:
+While the **Browse** tab is selected, the **gear** at the right end of the
+**Views** row opens **Manage Browse roots**. That is the place where Recent
+shows its order and Favorites shows its sorting. In the **Stacked** layout, the
+gear sits at the end of the **Browse** section heading.
 
-- add the folder Typora has open, or any folder by its full path, such as
-  `D:\Notes` or `/Volumes/Notes`;
-- reorder roots by dragging the dotted grip, or with the arrows;
-- remove roots;
-- show or hide **Home** and **Drives** (**Volumes**).
+On that page, the **Roots** list holds your root folders, **Home** and
+**Drives** (**Volumes**). You can:
 
-Like the other editing pages, it saves nothing until you press **Save**.
+- reorder the list by dragging the dotted grip, or with the arrows, so that
+  Home and Drives can sit anywhere among your roots;
+- remove a root;
+- hide **Home** or **Drives** with its eye button. A hidden entry stays in the
+  list, dimmed, so you can show it again in the same place.
+
+Under **Add a root**, you can:
+
+- add a folder with **Choose folder…**, which opens Typora's own folder dialog;
+- add the folder Typora has open;
+- add any folder by typing its full path, such as `D:\Notes`,
+  `\\server\notes` or `/Volumes/Notes`.
+
+A new root goes right after your last root. Like the other editing pages, this
+page saves nothing until you press **Save**. If a folder cannot be added, the
+reason appears right below the path field.
+
+The same choices are on the settings page, under **Browse** (see
+[Settings](#settings)). There, each change is saved at once, like the other
+settings.
 
 Browse reads folders again when you open the panel or switch back to the
 Typora window, so files added outside Typora appear. On macOS, reading folders
@@ -189,7 +209,9 @@ If a Favorite's file or folder has moved or been deleted, the row is marked
 ## Views, sorting and search
 
 - **Views** chooses the layout: **Tabs** shows Favorites, Recent and Browse one
-  at a time, and **Stacked** shows all three in one list. Both follow the
+  at a time, and **Stacked** shows all three in one list. Each collection's
+  tab and section heading carries its icon: a star for Favorites, a clock for
+  Recent and a folder tree for Browse. Both layouts follow the
   **Tab order** setting (see [Settings](#settings)). It also chooses how groups
   appear: **Outline** lists every group, and **Filter** shows one group at a
   time.
@@ -212,6 +234,16 @@ order also applies to the sections of the **Stacked** layout, and the live
 preview shows it at once. Each move is saved straight away, and every Typora
 window follows it. The panel keeps the tab you last selected, wherever it sits
 in the order.
+
+**Browse** has two rows. **Roots** lists your root folders, **Home** and
+**Drives** (**Volumes** on macOS) in one list, with arrows to move each entry.
+A root folder has a button to remove it, and Home and Drives each have an eye
+button to hide or show them. **Add a root** adds a folder with **Choose
+folder…**, adds the folder Typora has open, or takes a folder's full path. Each
+change is saved straight away, and the panel follows it.
+
+If a setting cannot be saved, or a folder cannot be added, the message appears
+in that setting's own row.
 
 ## Updates
 
@@ -252,7 +284,8 @@ How Favorites learns about a new version:
 - Favorites are saved on this computer, in Typora's local browser storage (an
   IndexedDB database named `prisant-labs.favorite-folders-files`). They are
   shared by every Typora window on this computer.
-- Browse saves its root folders, its Home and Drives choices, which folders
+- Browse saves its root folders, where Home and Drives sit and whether they
+  are shown, which folders
   are expanded, and the tab order, in the same database. It keeps folder contents only in
   memory. On macOS, each folder it reads runs one `ls` command through Typora,
   with the folder's path quoted; that is the only shell command Favorites runs.

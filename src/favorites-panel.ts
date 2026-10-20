@@ -1,15 +1,15 @@
 import {
-  ALL_GROUPS_ID, UNGROUPED_GROUP_ID, applyFavoritesOperation, locationId, normalizePath,
+  ALL_GROUPS_ID, UNGROUPED_GROUP_ID, applyFavoritesOperation, locationId,
   selectFavoriteGroups, selectFavoritesInGroup,
   type Favorite, type FavoritesOperation, type FavoritesPreferences, type FavoritesState,
   type LocationKind, type Platform,
 } from './model'
-import { browseRows, browseTops, folderName, type BrowseRow } from './browse-model'
+import { browsePlaces, browseRows, browseTops, CHOOSER_FAILED, drivesName, folderName, placeId, rootExample, rootId, splitPlaces, withRoot, type BrowsePlace, type BrowseRow } from './browse-model'
 import type { BrowseRootsChange, BrowseSnapshot } from './browse-runtime'
-import type { PanelTab } from './browse-store'
+import { normalizeTops, type BrowseTopKind, type PanelTab } from './browse-store'
 import { createFavoritesDraft, stageFavoritesDraft, type FavoritesDraft } from './editor-state'
 import { historyActivity, selectRecent, type NativeHistorySnapshot, type RecentLocation } from './native-history'
-import { icon } from './panel'
+import { icon, TAB_ICONS } from './panel'
 
 export interface FavoritesPanelSnapshot {
   state: FavoritesState
@@ -43,9 +43,13 @@ export interface FavoritesPanelActions {
   /** Opens the update confirmation. */
   update?(): void
   browse?: BrowsePanelActions
+  /** Typora's folder chooser, for adding a Browse root. Absent where Typora offers none. */
+  chooseFolder?(defaultPath?: string): Promise<string | undefined>
 }
 const RECENT_SOURCE = 'Typora\'s own Recent list (File → Open Recent). Favorites reads it while this panel is open and never saves or changes it.'
 type EditorKind = 'add' | 'move' | 'groups' | 'arrange' | 'roots'
+/** The field or confirmation a message is about. It shows right below that control; Save failures show beside Save. */
+type FieldSlot = 'roots-add' | 'new-group' | 'rename' | 'delete'
 type Tab = PanelTab
 type Choice = { id: string; kind: LocationKind; path: string }
 /** Where the Add Favorite page's location came from, for its label. */
@@ -59,14 +63,16 @@ interface Editor {
   choices: Choice[]
   source: ChoiceSource
   /** The Manage Browse roots page's unsaved roots. */
-  roots?: { paths: string[]; home: boolean; drives: boolean; input: string }
+  roots?: { paths: string[]; tops: BrowseTopKind[]; home: boolean; drives: boolean; input: string }
   groupId: string
   favorite?: Favorite
   newName: string
   renameId?: string
   renameText: string
   deleting?: string
+  /** A failed Save or staged change, shown beside Save. */
   error?: string
+  fieldError?: { at: FieldSlot; message: string }
   pending?: () => void
   saving: boolean
 }
@@ -83,6 +89,8 @@ function btn(label: string, key: string, action: (event: MouseEvent) => void, gl
   if (glyph) node.append(icon(glyph)); else node.textContent = label
   node.addEventListener('click', action); return node
 }
+/** A collection's icon on its tab or Stacked section heading. The class keeps it still when a section's chevron turns. */
+function collectionIcon(tab: Tab) { const mark = icon(TAB_ICONS[tab]); mark.classList.add('qa-collection-icon'); return mark }
 
 /** One renderer and editor lifecycle for both native sidebar and offline preview. */
 export class FavoritesPanelRenderer {
@@ -97,7 +105,7 @@ export class FavoritesPanelRenderer {
   private disposed = false
   private mainScroll = 0
   private focusNext?: string
-  /** A grip being dragged on Manage groups or Manage Browse roots; `id` is a group ID or a root's location ID. */
+  /** A grip being dragged on Manage groups or Manage Browse roots; `id` is a group ID, a root's location ID, `home` or `drives`. */
   private drag?: { list: 'groups' | 'roots'; id: string; target?: string; after: boolean; pointer: number; x: number; y: number; valid: boolean }
   private dragFrame?: number
   private readonly keyHandler = (event: KeyboardEvent) => {
@@ -230,13 +238,16 @@ export class FavoritesPanelRenderer {
     if (showSort) {
       const divider = el('span', 'qa-toolbar-divider'); divider.setAttribute('aria-hidden', 'true')
       toolbar.append(this.popupButton(`Groups: ${this.sortName(p.groupSort)}`, 'sort-groups', 'groups'), divider, this.popupButton(`Items: ${this.sortName(p.itemSort)}`, 'sort-items', 'items'))
-    } else toolbar.append(active === 'browse' ? this.manageRoots('browse-roots') : this.recentOrder())
+    } else if (active === 'recent') toolbar.append(this.recentOrder())
+    else if (active === 'browse' && this.snapshot!.browse) toolbar.append(this.rootsGear('browse-roots'))
     controls.append(toolbar)
     if (this.popup && ['view', 'groups', 'items'].includes(this.popup.kind)) controls.append(this.options())
     const navigation = el('div', 'qa-tabs'); navigation.setAttribute('role', 'tablist'); navigation.setAttribute('aria-label', 'Collections')
     const names: Record<Tab, string> = { favorites: 'Favorites', recent: 'Recent', browse: 'Browse' }
     if (p.layout === 'tabs' && !this.query) for (const [index, tab] of tabs.entries()) {
       const node = btn(names[tab], `tab-${tab}`, () => this.selectTab(tab))
+      // The label is its own element so that a narrow sidebar shortens it, not the icon.
+      node.replaceChildren(collectionIcon(tab), el('span', 'qa-tab-label', names[tab]))
       node.setAttribute('role', 'tab'); node.setAttribute('aria-selected', String(active === tab)); node.tabIndex = active === tab ? 0 : -1
       node.addEventListener('keydown', event => {
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
@@ -298,7 +309,7 @@ export class FavoritesPanelRenderer {
   }
   private sectionHeader(label: string, key: 'favorites' | 'recent', collapsed: boolean) {
     const node = btn(label, `collapse-${key}`, () => this.change({ [key === 'favorites' ? 'favoritesCollapsed' : 'recentCollapsed']: !collapsed }))
-    node.className = 'qa-section-toggle'; node.prepend(icon('chevron')); node.setAttribute('aria-expanded', String(!collapsed)); return node
+    node.className = 'qa-section-toggle'; node.prepend(icon('chevron'), collectionIcon(key)); node.setAttribute('aria-expanded', String(!collapsed)); return node
   }
   private renderFavorites(lists: HTMLElement) {
     const state = this.state(), p = state.preferences
@@ -357,8 +368,9 @@ export class FavoritesPanelRenderer {
     for (const row of rows) lists.append(this.row(row, 'recent'))
     if (!rows.length) lists.append(el('p', 'qa-empty', kind === 'file' ? 'No recent Markdown files in Typora\'s Recent list.' : 'No recent folders in Typora\'s Recent list.'))
   }
-  private manageRoots(key: string) {
-    const node = btn('Manage roots', key, () => this.openEditor('roots', key)); node.disabled = !this.snapshot!.browse?.writable; return node
+  /** Browse's own control, at the end of the Views row like Recent's order and Favorites' sorting, or of its Stacked section heading. */
+  private rootsGear(key: string) {
+    const node = btn('Manage Browse roots', key, () => this.openEditor('roots', key), 'gear'); node.disabled = !this.snapshot!.browse?.writable; return node
   }
   private fileManager() { const platform = this.snapshot!.platform; return platform === 'darwin' ? 'Finder' : platform === 'win32' ? 'Explorer' : 'file manager' }
   private renderBrowse(lists: HTMLElement) {
@@ -367,9 +379,9 @@ export class FavoritesPanelRenderer {
       // Browse keeps this in its own record: saved Favorites accept only their own section keys.
       const collapsed = browse.record.collapsed
       const header = btn('Browse', 'collapse-browse', () => { void this.run(() => actions.setCollapsed(!collapsed)) })
-      header.className = 'qa-section-toggle'; header.prepend(icon('chevron')); header.setAttribute('aria-expanded', String(!collapsed)); lists.append(header)
+      header.className = 'qa-section-toggle'; header.prepend(icon('chevron'), collectionIcon('browse')); header.setAttribute('aria-expanded', String(!collapsed))
+      const heading = el('div', 'qa-browse-head qa-browse-section'); heading.append(header, this.rootsGear('browse-roots-stacked')); lists.append(heading)
       if (collapsed) return
-      const bar = el('div', 'qa-browse-bar'); bar.append(this.manageRoots('browse-roots-stacked')); lists.append(bar)
     }
     if (!browse.available) { lists.append(el('p', 'qa-empty', 'Browsing folders isn\'t available in this Typora window.')); return }
     const tops = browseTops(browse.record, browse.home, platform)
@@ -526,7 +538,7 @@ export class FavoritesPanelRenderer {
       if (path) try { choices.push({ id: locationId(type, path, this.snapshot!.platform), kind: type, path }) } catch { /* Not an eligible saved path. */ }
     }
     this.editor = { kind, origin, draft: createFavoritesDraft(this.state()), choices: choice ? [choice] : choices, source: choice ? source : 'current', selected: choice, groupId, favorite, newName: '', renameText: '', saving: false }
-    if (kind === 'roots' && browse) this.editor.roots = { paths: [...browse.record.roots], home: browse.record.home, drives: browse.record.drives, input: '' }
+    if (kind === 'roots' && browse) this.editor.roots = { paths: [...browse.record.roots], tops: [...browse.record.tops], home: browse.record.home, drives: browse.record.drives, input: '' }
     this.popup = undefined; this.focusNext = 'editor-back'; this.render()
     const body = this.container.querySelector('.qa-page-body'); if (body) body.scrollTop = 0
   }
@@ -535,6 +547,7 @@ export class FavoritesPanelRenderer {
     if (e.roots) {
       const record = this.snapshot!.browse!.record
       return Boolean(e.roots.input) || e.roots.home !== record.home || e.roots.drives !== record.drives || e.roots.paths.join('\n') !== record.roots.join('\n')
+        || normalizeTops(e.roots.tops, e.roots.paths.length).join() !== record.tops.join()
     }
     return e.draft.operations.length > 0 || Boolean(e.selected) || (e.kind === 'move' && e.groupId !== e.favorite?.groupId) || Boolean(e.newName || e.renameId)
   }
@@ -579,8 +592,8 @@ export class FavoritesPanelRenderer {
     else if (e.kind === 'groups') this.groupsPage(body, e, state)
     else if (e.kind === 'roots') this.rootsPage(body, e)
     else this.arrangePage(body, e, state)
-    if (e.error) { const error = el('p', 'qa-page-error', e.error); error.setAttribute('role', 'alert'); body.append(error) }
     const footer = el('div', 'qa-page-footer'); const buttons = el('div', 'qa-page-buttons')
+    if (e.error) { const error = el('p', 'qa-page-error', e.error); error.setAttribute('role', 'alert'); footer.append(error) }
     const allSaved = e.kind === 'add' && e.choices.every(choice => this.state().favorites.some(row => row.id === choice.id))
     if (allSaved) buttons.append(btn('Done', 'editor-done', () => this.leaveEditor(() => this.closeEditor())))
     else {
@@ -627,6 +640,20 @@ export class FavoritesPanelRenderer {
       body.append(label)
     }
   }
+  /** The message about one field or confirmation, placed right below it. */
+  private fieldMessage(at: FieldSlot): HTMLElement[] {
+    const message = this.editor!.fieldError; if (message?.at !== at) return []
+    const node = el('p', 'qa-page-error', message.message); node.setAttribute('role', 'alert'); node.dataset.fieldError = at; return [node]
+  }
+  private complain(at: FieldSlot, message: string, focus?: string) {
+    this.editor!.fieldError = { at, message }; if (focus) this.focusNext = focus; this.render()
+  }
+  private markField(input: HTMLInputElement, at: FieldSlot) { if (this.editor!.fieldError?.at === at) input.setAttribute('aria-invalid', 'true') }
+  /** Typing clears the field's message without a redraw, which would drop an IME composition. */
+  private clearField(at: FieldSlot, input?: HTMLInputElement) {
+    const e = this.editor; if (e?.fieldError?.at !== at) return
+    e.fieldError = undefined; this.container.querySelector(`[data-field-error="${at}"]`)?.remove(); input?.removeAttribute('aria-invalid')
+  }
   private manualNotice(body: HTMLElement, mode: string, field: 'groupSort' | 'itemSort') {
     body.append(el('p', 'qa-page-note', mode === 'custom' ? field === 'groupSort' ? 'Drag a grip or use arrows to arrange groups.' : 'Use arrows to arrange Favorites in this group.' : `Currently sorted ${this.sortName(mode)}. Arrange manually stages Custom; Save applies it to ${field === 'groupSort' ? 'Groups' : 'Items in every group'}.`))
     if (mode !== 'custom') body.append(btn('Arrange manually', 'arrange-manually', () => this.stage({ type: 'favorites:preferences', patch: { [field]: 'custom' } })))
@@ -653,21 +680,21 @@ export class FavoritesPanelRenderer {
       } else row.append(el('small', 'qa-quiet', 'Always last'))
       body.append(row)
       if (e.renameId === group.id) {
-        const form = el('div', 'qa-inline-form'), input = el('input'); input.value = e.renameText; input.maxLength = 60; input.setAttribute('aria-label', 'Rename group'); input.dataset.key = 'rename-input'; input.addEventListener('input', () => { e.renameText = input.value })
-        this.preserveComposition(input)
-        form.append(input, btn('Apply name', 'apply-name', () => { try { const draft = stageFavoritesDraft(e.draft, { type: 'group:rename', groupId: group.id, name: e.renameText }, this.snapshot!.platform); e.draft = draft; e.renameId = undefined; e.error = undefined } catch (error) { e.error = (error as Error).message }; this.render() }), btn('Cancel rename', 'cancel-rename', () => { e.renameId = undefined; this.render() })); body.append(form)
+        const form = el('div', 'qa-inline-form'), input = el('input'); input.value = e.renameText; input.maxLength = 60; input.setAttribute('aria-label', 'Rename group'); input.dataset.key = 'rename-input'; input.addEventListener('input', () => { e.renameText = input.value; this.clearField('rename', input) })
+        this.preserveComposition(input); this.markField(input, 'rename')
+        form.append(input, btn('Apply name', 'apply-name', () => { try { const draft = stageFavoritesDraft(e.draft, { type: 'group:rename', groupId: group.id, name: e.renameText }, this.snapshot!.platform); e.draft = draft; e.renameId = undefined; e.fieldError = undefined; this.render() } catch (error) { this.complain('rename', (error as Error).message) } }), btn('Cancel rename', 'cancel-rename', () => { e.renameId = undefined; this.clearField('rename'); this.render() })); body.append(form, ...this.fieldMessage('rename'))
       }
       if (e.deleting === group.id) {
-        const confirm = el('div', 'qa-delete-confirm'); confirm.append(el('p', '', `Delete ${group.name}? Its Favorites will move to Ungrouped when you Save.`), btn('Delete group', 'confirm-delete', () => { e.deleting = undefined; this.stage({ type: 'group:delete', groupId: group.id }) }), btn('Keep group', 'keep-group', () => { e.deleting = undefined; this.render() })); body.append(confirm)
+        const confirm = el('div', 'qa-delete-confirm'); confirm.append(el('p', '', `Delete ${group.name}? Its Favorites will move to Ungrouped when you Save.`), btn('Delete group', 'confirm-delete', () => { e.deleting = undefined; this.clearField('delete'); this.stage({ type: 'group:delete', groupId: group.id }) }), btn('Keep group', 'keep-group', () => { e.deleting = undefined; this.clearField('delete'); this.render() })); body.append(confirm, ...this.fieldMessage('delete'))
       }
     }
     body.append(el('h4', 'qa-page-section', 'New group'))
     const form = el('div', 'qa-new-group'), label = el('label'), input = el('input'); input.placeholder = 'Group name'; input.value = e.newName; input.maxLength = 60; input.dataset.key = 'new-group-name'; input.setAttribute('aria-label', 'New group name')
-    input.addEventListener('input', () => { e.newName = input.value; this.syncDraftState() })
-    this.preserveComposition(input)
+    input.addEventListener('input', () => { e.newName = input.value; this.clearField('new-group', input); this.syncDraftState() })
+    this.preserveComposition(input); this.markField(input, 'new-group')
     label.append(input); form.append(label, btn('Add group', 'add-group', () => {
-      try { const id = `group-${globalThis.crypto.randomUUID()}`; e.draft = stageFavoritesDraft(e.draft, { type: 'group:create', id, name: e.newName }, this.snapshot!.platform); e.newName = ''; e.error = undefined } catch (error) { e.error = (error as Error).message }; this.render()
-    })); body.append(form, el('p', 'qa-page-note', 'New groups, names and order are only applied when you Save.'))
+      try { const id = `group-${globalThis.crypto.randomUUID()}`; e.draft = stageFavoritesDraft(e.draft, { type: 'group:create', id, name: e.newName }, this.snapshot!.platform); e.newName = ''; e.fieldError = undefined; this.render() } catch (error) { this.complain('new-group', (error as Error).message, 'new-group-name') }
+    })); body.append(form, ...this.fieldMessage('new-group'), el('p', 'qa-page-note', 'New groups, names and order are only applied when you Save.'))
   }
   private arrangePage(body: HTMLElement, e: Editor, state: FavoritesState) {
     this.manualNotice(body, state.preferences.itemSort, 'itemSort')
@@ -682,63 +709,80 @@ export class FavoritesPanelRenderer {
     }
     if (!order.length) body.append(el('p', 'qa-empty', 'This group has no Favorites yet.'))
   }
-  private rootId(path: string) { try { return locationId('folder', path, this.snapshot!.platform) } catch { return path } }
+  private rootId(path: string) { return rootId(path, this.snapshot!.platform) }
+  /** Adds a typed or chosen folder to the page's roots, or says why not, below the path field. The caller redraws. */
+  private stageRoot(e: Editor, value: string, focus: string) {
+    const r = e.roots!, result = withRoot(r.paths, value, this.snapshot!.platform)
+    if ('error' in result) { this.complain('roots-add', result.error); return false }
+    r.paths = result.roots; e.fieldError = undefined; this.focusNext = focus; return true
+  }
+  private async chooseRoot(e: Editor) {
+    const choose = this.actions.chooseFolder; if (!choose || e.saving) return
+    let chosen: string | undefined
+    try { chosen = await choose(this.snapshot!.current.folder ?? this.snapshot!.browse?.home) }
+    catch { if (!this.disposed && this.editor === e) this.complain('roots-add', CHOOSER_FAILED); return }
+    // A cancelled dialog changes nothing.
+    if (chosen && !this.disposed && this.editor === e && !e.saving && this.stageRoot(e, chosen, 'roots-choose')) this.render()
+  }
+  /** Puts a rearranged list of roots, Home and Drives into the page's draft. The caller redraws. */
+  private arrangeRoots(r: NonNullable<Editor['roots']>, places: BrowsePlace[]) { const { roots, tops } = splitPlaces(places); r.paths = roots; r.tops = tops }
   private rootsPage(body: HTMLElement, e: Editor) {
     const r = e.roots!, { platform, current } = this.snapshot!, browse = this.snapshot!.browse!
-    const id = (path: string) => this.rootId(path)
-    body.append(el('p', 'qa-page-note', 'Browse shows these folders first, in this order. It lists folders and Markdown files only, and never moves, renames or deletes anything.'))
-    body.append(el('h4', 'qa-page-section', 'Root folders'))
-    if (!r.paths.length) body.append(el('p', 'qa-empty', 'No root folders yet.'))
-    else body.append(el('p', 'qa-page-note', 'Drag a grip or use arrows to arrange roots.'))
-    r.paths.forEach((path, index) => {
-      const name = folderName(path), row = el('div', 'qa-reorder-item qa-root-item'), copy = el('span', 'qa-root-copy'); row.title = path; row.dataset.rootId = id(path)
-      const grip = btn(`Drag root: ${name}`, `root-drag:${id(path)}`, () => {}, 'grip'); grip.classList.add('qa-drag-handle')
-      grip.addEventListener('pointerdown', event => { if (e.saving) return; event.preventDefault(); this.drag = { list: 'roots', id: id(path), after: false, pointer: event.pointerId, x: event.clientX, y: event.clientY, valid: false }; row.classList.add('qa-dragging') })
-      copy.append(el('span', 'qa-edit-name', name), el('small', 'qa-root-path', path)); row.append(grip, copy)
+    const places = browsePlaces(r.paths, r.tops), drives = drivesName(platform)
+    body.append(el('p', 'qa-page-note', 'Browse shows these first, in this order. It lists folders and Markdown files only, and never moves, renames or deletes anything.'))
+    body.append(el('h4', 'qa-page-section', 'Roots'))
+    body.append(el('p', 'qa-page-note', `Drag a grip or use arrows to arrange. Home and ${drives} can be hidden, not removed.`))
+    places.forEach((place, index) => {
+      const id = placeId(place, platform), shown = place.kind === 'root' || r[place.kind]
+      const name = place.kind === 'root' ? folderName(place.path) : place.kind === 'home' ? 'Home' : drives
+      const detail = !shown ? 'Hidden' : place.kind === 'root' ? place.path : place.kind === 'home' ? browse.home ?? 'Not known in this Typora window' : `All ${drives.toLowerCase()}`
+      const row = el('div', `qa-reorder-item qa-root-item${shown ? '' : ' qa-root-hidden'}`), copy = el('span', 'qa-root-copy'); row.dataset.rootId = id
+      if (place.kind === 'root') row.title = place.path
+      const grip = btn(`Drag root: ${name}`, `root-drag:${id}`, () => {}, 'grip'); grip.classList.add('qa-drag-handle')
+      grip.addEventListener('pointerdown', event => { if (e.saving) return; event.preventDefault(); this.drag = { list: 'roots', id, after: false, pointer: event.pointerId, x: event.clientX, y: event.clientY, valid: false }; row.classList.add('qa-dragging') })
+      copy.append(el('span', 'qa-edit-name', name), el('small', 'qa-root-path', detail)); row.append(grip, copy)
       for (const [direction, delta] of [['up', -1], ['down', 1]] as const) {
-        const move = btn(`Move ${direction}: ${name}`, `root-${direction}:${id(path)}`, () => { const paths = [...r.paths]; [paths[index], paths[index + delta]] = [paths[index + delta], paths[index]]; r.paths = paths; this.render() }, direction)
-        move.disabled = index + delta < 0 || index + delta >= r.paths.length; row.append(move)
+        const move = btn(`Move ${direction}: ${name}`, `root-${direction}:${id}`, () => { const next = [...places]; [next[index], next[index + delta]] = [next[index + delta], next[index]]; this.arrangeRoots(r, next); this.render() }, direction)
+        move.disabled = index + delta < 0 || index + delta >= places.length; row.append(move)
       }
-      row.append(btn(`Remove root: ${name}`, `root-remove:${id(path)}`, () => { r.paths = r.paths.filter((_, position) => position !== index); this.render() }, 'trash'))
+      // Home and Drives are part of Browse itself: they can be hidden, and keep their place while hidden.
+      if (place.kind === 'root') row.append(btn(`Remove root: ${name}`, `root-remove:${id}`, () => { this.arrangeRoots(r, places.filter((_, position) => position !== index)); this.render() }, 'trash'))
+      else { const field = place.kind; row.append(btn(`${shown ? 'Hide' : 'Show'} ${name}`, `roots-${field}`, () => { r[field] = !shown; this.render() }, shown ? 'eye' : 'eye-off')) }
       body.append(row)
     })
-    const folder = current.folder
-    if (folder && !r.paths.some(path => id(path) === id(folder))) {
-      const add = btn(`Add current folder: ${folderName(folder)}`, 'roots-add-current', () => { r.paths = [...r.paths, folder]; this.render() }); add.className = 'qa-add-root'; body.append(add)
+    // Ways to add a root: Typora's folder chooser, the folder Typora has open, or a typed path.
+    body.append(el('h4', 'qa-page-section', 'Add a root'))
+    const adders = el('div', 'qa-root-adders'), folder = current.folder
+    if (this.actions.chooseFolder) {
+      const choose = btn('Choose folder…', 'roots-choose', () => { void this.chooseRoot(e) }); choose.className = 'qa-add-root'; adders.append(choose)
     }
-    const example = platform === 'win32' ? 'D:\\Notes' : '/Volumes/Notes'
-    const form = el('div', 'qa-new-group'), label = el('label', '', 'Add a folder by its full path'), input = el('input')
-    input.placeholder = example; input.value = r.input; input.dataset.key = 'root-path'; input.setAttribute('aria-label', 'Folder path'); input.spellcheck = false
-    const add = () => {
-      let path: string
-      try { path = normalizePath(r.input.trim(), platform) } catch { e.error = `Enter a full folder path, such as ${example}.`; this.render(); return }
-      if (r.paths.some(root => id(root) === id(path))) { e.error = 'That folder is already a root.'; this.render(); return }
-      r.paths = [...r.paths, path]; r.input = ''; e.error = undefined; this.focusNext = 'root-path'; this.render()
+    if (folder && !r.paths.some(path => this.rootId(path) === this.rootId(folder))) {
+      const add = btn(`Add current folder: ${folderName(folder)}`, 'roots-add-current', () => { r.paths = [...r.paths, folder]; this.clearField('roots-add'); this.render() })
+      add.className = 'qa-add-root'; adders.append(add)
     }
-    input.addEventListener('input', () => { r.input = input.value; this.syncDraftState() })
+    if (adders.childElementCount) body.append(adders)
+    const form = el('div', 'qa-new-group'), label = el('label', '', adders.childElementCount ? 'Or type its full path' : 'Add a folder by its full path'), input = el('input')
+    input.placeholder = rootExample(platform); input.value = r.input; input.dataset.key = 'root-path'; input.setAttribute('aria-label', 'Folder path'); input.spellcheck = false
+    const add = () => { if (this.stageRoot(e, r.input, 'root-path')) { r.input = ''; this.render() } }
+    input.addEventListener('input', () => { r.input = input.value; this.clearField('roots-add', input); this.syncDraftState() })
     input.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); add() } })
-    this.preserveComposition(input)
-    label.append(input); form.append(label, btn('Add folder', 'roots-add-path', add)); body.append(form)
-    body.append(el('h4', 'qa-page-section', 'Also show'))
-    for (const [field, text] of [['home', 'Home folder'], ['drives', platform === 'darwin' ? 'Volumes' : 'Drives']] as const) {
-      const wrapper = el('label', 'qa-check'), box = el('input'); box.type = 'checkbox'; box.checked = r[field]; box.dataset.key = `roots-${field}`; box.setAttribute('aria-label', text)
-      box.addEventListener('change', () => { r[field] = box.checked; this.render() }); wrapper.append(box, document.createTextNode(text)); body.append(wrapper)
-    }
-    if (!browse.home) body.append(el('p', 'qa-page-note', 'This Typora window does not say where your home folder is, so Home stays hidden.'))
+    this.preserveComposition(input); this.markField(input, 'roots-add')
+    label.append(input); form.append(label, btn('Add folder', 'roots-add-path', add)); body.append(form, ...this.fieldMessage('roots-add'))
   }
   private async saveEditor() {
     const e = this.editor; if (!e || e.saving || e.pending || !this.editorWritable()) return
     if (e.roots) {
-      if (e.roots.input.trim()) { e.error = 'Add or clear the folder path before saving.'; this.render(); return }
+      if (e.roots.input.trim()) { this.complain('roots-add', 'Add the folder, or clear the path, before saving.', 'root-path'); return }
       e.saving = true; e.error = undefined; this.render()
       try {
-        await this.actions.browse!.saveRoots({ roots: e.roots.paths, home: e.roots.home, drives: e.roots.drives })
+        await this.actions.browse!.saveRoots({ ...splitPlaces(browsePlaces(e.roots.paths, e.roots.tops)), home: e.roots.home, drives: e.roots.drives })
         if (!this.disposed && this.editor === e) this.closeEditor()
       } catch (error) { if (!this.disposed && this.editor === e) { e.saving = false; e.error = (error as Error).message; this.focusNext = 'editor-save'; this.render() } }
       return
     }
-    if (e.newName || e.renameId) { e.error = 'Finish adding or renaming the group before saving.'; this.render(); return }
-    if (e.deleting) { e.error = 'Confirm or cancel the group deletion before saving.'; this.render(); return }
+    if (e.renameId) { this.complain('rename', 'Apply or cancel the new name before saving.', 'rename-input'); return }
+    if (e.newName) { this.complain('new-group', 'Finish adding the group, or clear its name, before saving.', 'new-group-name'); return }
+    if (e.deleting) { this.complain('delete', 'Confirm or cancel the group deletion before saving.', 'confirm-delete'); return }
     let draft = e.draft
     try {
       if (e.kind === 'add') {
@@ -796,7 +840,7 @@ export class FavoritesPanelRenderer {
     }
     const roots = this.editor.roots
     // Roots are not a Favorites draft: the page keeps them until Save.
-    if (drag.list === 'roots' && roots) { roots.paths = insert(roots.paths, path => this.rootId(path)); this.render() }
+    if (drag.list === 'roots' && roots) { this.arrangeRoots(roots, insert(browsePlaces(roots.paths, roots.tops), place => placeId(place, this.snapshot!.platform))); this.render() }
     else if (drag.list === 'groups') this.stage({ type: 'group:reorder', groupIds: insert(this.projected().groupOrder, group => group) })
   }
   private cancelDrag() {

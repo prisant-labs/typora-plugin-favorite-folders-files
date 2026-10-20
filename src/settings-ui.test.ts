@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { applyFavoritesOperation, createFavoritesState, UNGROUPED_GROUP_ID } from './model'
+import { icon } from './panel'
 import { renderSettings } from './settings-ui'
 afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals() })
 describe('shared Favorites settings editor', () => {
@@ -162,8 +163,141 @@ describe('shared Favorites settings editor', () => {
     layout.value = 'stacked'; layout.dispatchEvent(new Event('change'))
     await Promise.resolve(); await Promise.resolve()
     expect(container.textContent).toContain('Cannot save setting')
+    // The message belongs to the setting that failed.
+    const error = layout.closest('.qa-setting-row')!.querySelector('.qa-settings__error')!
+    expect(error.textContent).toBe('Cannot save setting'); expect(error.getAttribute('role')).toBe('alert')
+    expect(container.querySelector<HTMLElement>('.qa-settings__status')!.hidden).toBe(true)
     expect(layout.value).toBe('tabs')
     dispose(); expect(container.childElementCount).toBe(0)
+  })
+})
+
+describe('Browse settings', () => {
+  type Saved = { roots: string[]; tops: Array<'root' | 'home' | 'drives'>; home: boolean; drives: boolean }
+  function host(options: { platform?: 'darwin' | 'win32'; writable?: boolean; save?: (change: Saved) => Promise<unknown>; choose?: (defaultPath?: string) => Promise<string | undefined> } = {}) {
+    const container = document.createElement('div'); document.body.append(container)
+    const kept = { roots: ['/Projects', '/Writing'], tops: ['root', 'root', 'home', 'drives'] as Saved['tops'], home: true, drives: true, input: '', error: undefined as { at: 'roots' | 'add'; message: string } | undefined }
+    const save = vi.fn(options.save ?? (async (change: Saved) => { Object.assign(kept, change); draw() }))
+    let dispose = () => {}
+    const draw = () => {
+      dispose()
+      dispose = renderSettings(container, createFavoritesState(), vi.fn(), { browse: {
+        platform: options.platform ?? 'darwin', roots: kept.roots, tops: kept.tops, home: kept.home, drives: kept.drives, homeFolder: '/Home', writable: options.writable ?? true,
+        current: '/Library/Research', input: kept.input, error: kept.error,
+        setInput: value => { kept.input = value }, setError: error => { kept.error = error; draw() }, save, choose: options.choose,
+      } })
+    }
+    draw()
+    const section = () => container.querySelector<HTMLElement>('[data-settings-section="browse"]')!
+    const button = (label: string) => section().querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!
+    const field = () => section().querySelector<HTMLInputElement>('input[aria-label="Folder path"]')!
+    const type = (value: string) => { field().value = value; field().dispatchEvent(new Event('input', { bubbles: true })) }
+    const names = () => [...section().querySelectorAll('.qa-settings__root-name')].map(node => node.textContent)
+    const row = (name: string) => [...section().querySelectorAll<HTMLElement>('.qa-settings__order-item')].find(node => node.querySelector('.qa-settings__root-name')?.textContent === name)!
+    const error = (at: string) => section().querySelector(`[data-browse-setting="${at}"] .qa-settings__error`)?.textContent
+    return { container, kept, save, section, button, field, type, names, row, error, dispose: () => dispose() }
+  }
+
+  it('gets its own section, after Recent, with the roots, Home and Volumes in one list', () => {
+    const f = host()
+    expect([...f.container.querySelectorAll('.qa-settings__section > h3')].map(node => node.textContent)).toEqual(['Display', 'Ordering', 'Recent', 'Browse'])
+    expect([...f.section().querySelectorAll('.qa-settings__setting-name')].map(node => node.textContent)).toEqual(['Roots', 'Add a root'])
+    expect(f.section().textContent).toContain('Browse shows these first, in this order.')
+    expect(f.names()).toEqual(['Projects', 'Writing', 'Home', 'Volumes'])
+    expect(f.row('Projects').querySelector('.qa-settings__root-path')?.textContent).toBe('/Projects')
+    expect(f.row('Home').querySelector('.qa-settings__root-path')?.textContent).toBe('/Home')
+    expect(f.button('Move up: Projects').disabled).toBe(true); expect(f.button('Move down: Volumes').disabled).toBe(true)
+    // Home and Volumes are hidden, never removed.
+    expect(f.button('Hide Home')).not.toBeNull(); expect(f.button('Hide Volumes')).not.toBeNull()
+    // After a removal, focus goes to the same button on the next row, not to the other row's path field.
+    expect(f.button('Remove root: Projects').dataset.settingFallback).toBe('browseRoot:folder:/Writing:remove')
+    expect(f.button('Remove root: Writing').dataset.settingFallback).toBe('browseHome')
+    expect(f.button('Remove root: Home')).toBeNull(); expect(f.section().querySelector('input[type="checkbox"]')).toBeNull()
+    // The ways to add a root have their own row. Without a chooser, it offers the open folder and a typed path.
+    const adding = f.section().querySelector('[data-browse-setting="add"]')!
+    expect(adding.contains(f.field())).toBe(true); expect(adding.contains(f.button('Add current folder: Research'))).toBe(true)
+    expect(f.button('Choose folder…')).toBeNull()
+    f.dispose()
+    const windows = host({ platform: 'win32' })
+    expect(windows.button('Hide Drives')).not.toBeNull()
+    expect(windows.field().placeholder).toBe('D:\\Notes')
+    windows.dispose()
+  })
+
+  it('saves each move, removal and hide at once, with the other choices unchanged', async () => {
+    const f = host()
+    f.button('Move up: Writing').click()
+    expect(f.save).toHaveBeenLastCalledWith({ roots: ['/Writing', '/Projects'], tops: ['root', 'root', 'home', 'drives'], home: true, drives: true })
+    await vi.waitFor(() => expect(f.names()).toEqual(['Writing', 'Projects', 'Home', 'Volumes']))
+    f.button('Move up: Home').click()
+    expect(f.save).toHaveBeenLastCalledWith({ roots: ['/Writing', '/Projects'], tops: ['root', 'home', 'root', 'drives'], home: true, drives: true })
+    await vi.waitFor(() => expect(f.names()).toEqual(['Writing', 'Home', 'Projects', 'Volumes']))
+    f.button('Remove root: Writing').click()
+    await vi.waitFor(() => expect(f.names()).toEqual(['Home', 'Projects', 'Volumes']))
+    expect(f.kept.tops).toEqual(['home', 'root', 'drives'])
+    f.button('Hide Home').click()
+    expect(f.save).toHaveBeenLastCalledWith({ roots: ['/Projects'], tops: ['home', 'root', 'drives'], home: false, drives: true })
+    await vi.waitFor(() => expect(f.row('Home').classList.contains('qa-settings__root-hidden')).toBe(true))
+    expect(f.row('Home').querySelector('.qa-settings__root-path')?.textContent).toBe('Hidden')
+    f.button('Show Home').click()
+    expect(f.save).toHaveBeenLastCalledWith({ roots: ['/Projects'], tops: ['home', 'root', 'drives'], home: true, drives: true })
+    f.dispose()
+  })
+
+  it('adds the open folder, a chosen folder or a typed path after the other roots', async () => {
+    const choose = vi.fn(async () => '/Volumes/Archive')
+    const f = host({ choose })
+    f.button('Add current folder: Research').click()
+    await vi.waitFor(() => expect(f.names()).toEqual(['Projects', 'Writing', 'Research', 'Home', 'Volumes']))
+    expect(f.kept.tops).toEqual(['root', 'root', 'root', 'home', 'drives'])
+    expect(f.button('Add current folder: Research')).toBeNull()
+    f.button('Choose folder…').click()
+    expect(choose).toHaveBeenCalledWith('/Library/Research')
+    await vi.waitFor(() => expect(f.names()).toEqual(['Projects', 'Writing', 'Research', 'Archive', 'Home', 'Volumes']))
+    f.type('/Notes/Inbox/'); f.field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await vi.waitFor(() => expect(f.names()).toEqual(['Projects', 'Writing', 'Research', 'Archive', 'Inbox', 'Home', 'Volumes']))
+    expect(f.kept.input).toBe(''); expect(f.field().value).toBe('')
+    f.dispose()
+  })
+
+  it('shows add errors right below the add controls and keeps the typed path', async () => {
+    const replies: Array<string | undefined> = ['/Writing/']
+    const f = host({ choose: async () => { if (!replies.length) throw new Error('bridge gone'); return replies.shift() } })
+    f.type('Notes'); f.button('Add folder').click()
+    expect(f.error('add')).toBe('Enter a full folder path, such as /Volumes/Notes.')
+    const error = f.section().querySelector('[data-browse-setting="add"] .qa-settings__error')!
+    expect(error.getAttribute('role')).toBe('alert')
+    expect(error.previousElementSibling?.contains(f.field())).toBe(true)
+    expect(f.field().value).toBe('Notes'); expect(f.field().getAttribute('aria-invalid')).toBe('true')
+    expect(f.save).not.toHaveBeenCalled()
+    f.type('/Projects'); f.button('Add folder').click()
+    expect(f.error('add')).toBe('That folder is already a root.')
+    f.button('Choose folder…').click()
+    await vi.waitFor(() => expect(f.error('add')).toBe('That folder is already a root.'))
+    f.button('Choose folder…').click()
+    await vi.waitFor(() => expect(f.error('add')).toBe('Typora\'s folder chooser could not be opened. Type the folder\'s full path instead.'))
+    expect(f.error('roots')).toBeUndefined(); expect(f.save).not.toHaveBeenCalled()
+    f.dispose()
+  })
+
+  it('reports a failed save in the row that changed and gives back the typed path', async () => {
+    const f = host({ save: async () => { throw new Error('Browse settings could not be saved.') } })
+    f.button('Hide Volumes').click()
+    await vi.waitFor(() => expect(f.error('roots')).toBe('Browse settings could not be saved.'))
+    expect(f.error('add')).toBeUndefined()
+    f.type('/Notes'); f.button('Add folder').click()
+    await vi.waitFor(() => expect(f.error('add')).toBe('Browse settings could not be saved.'))
+    expect(f.error('roots')).toBeUndefined()
+    expect(f.field().value).toBe('/Notes')
+    expect(f.container.querySelector<HTMLElement>('.qa-settings__status')!.hidden).toBe(true)
+    f.dispose()
+  })
+
+  it('cannot be changed until Browse settings have been read', () => {
+    const f = host({ writable: false, choose: vi.fn() })
+    const controls = [...f.section().querySelectorAll<HTMLInputElement | HTMLButtonElement>('button, input')]
+    expect(controls.length).toBeGreaterThan(8); expect(controls.every(control => control.disabled)).toBe(true)
+    f.dispose()
   })
 })
 
@@ -180,6 +314,10 @@ describe('tab order setting', () => {
     expect(display.textContent).toContain('Tab order')
     expect(display.textContent).toContain('The order of the tabs in the panel, and of the sections in the Stacked layout.')
     expect(order(container)).toEqual(['Favorites', 'Recent', 'Browse'])
+    // Each tab carries the same icon as in the panel.
+    const shape = (svg: Element | null) => svg?.querySelector('path')?.getAttribute('d')
+    expect([...container.querySelectorAll('[data-tab-order] .qa-settings__order-item')].map(item => shape(item.querySelector(':scope > svg.qa-settings__order-icon'))))
+      .toEqual(['star', 'clock', 'tree'].map(name => shape(icon(name))))
     expect(button(container, 'Move up: Favorites').disabled).toBe(true)
     expect(button(container, 'Move down: Browse').disabled).toBe(true)
     button(container, 'Move up: Browse').click()
@@ -212,9 +350,14 @@ describe('tab order setting', () => {
     const container = document.createElement('div'); document.body.append(container)
     const dispose = renderSettings(container, createFavoritesState(), vi.fn(), { tabs: { order: ['favorites', 'recent', 'browse'], writable: true, setOrder: vi.fn(async () => { throw new Error('Browse settings could not be saved.') }) } })
     button(container, 'Move down: Favorites').click()
-    await vi.waitFor(() => expect(container.textContent).toContain('Browse settings could not be saved.'))
+    await vi.waitFor(() => expect(container.querySelector('[data-tab-order] .qa-settings__error')?.textContent).toBe('Browse settings could not be saved.'))
     expect(order(container)).toEqual(['Favorites', 'Recent', 'Browse'])
     dispose()
+    // A message the host kept across a redraw shows in the same row.
+    const kept = document.createElement('div')
+    const disposeKept = renderSettings(kept, createFavoritesState(), vi.fn(), { tabs: { order: ['favorites', 'recent', 'browse'], writable: true, setOrder: vi.fn(), error: 'Browse settings could not be saved.' } })
+    expect(kept.querySelector('[data-tab-order] .qa-settings__error')?.textContent).toBe('Browse settings could not be saved.')
+    disposeKept()
   })
 
   it('cannot be changed until Browse settings have been read', () => {
@@ -274,7 +417,7 @@ describe('settings updates', () => {
     const dispose = renderSettings(container, createFavoritesState(), vi.fn(), { updates: { enabled: false, setEnabled: vi.fn(async () => { throw new Error('Cannot save setting') }) } })
     const box = container.querySelector<HTMLInputElement>('input[data-setting-key="checkForUpdates"]')!
     box.click()
-    await vi.waitFor(() => expect(container.textContent).toContain('Cannot save setting'))
+    await vi.waitFor(() => expect(box.closest('.qa-setting-row')!.querySelector('.qa-settings__error')?.textContent).toBe('Cannot save setting'))
     expect(box.checked).toBe(false); expect(box.disabled).toBe(false)
     dispose()
   })
