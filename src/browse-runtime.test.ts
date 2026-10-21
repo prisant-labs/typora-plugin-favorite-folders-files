@@ -141,9 +141,23 @@ describe('Browse controller', () => {
     await controller.addRoot('c:\\synthetic\\'); expect(store.record.roots).toEqual(['C:/Synthetic'])
     await controller.addRoot('D:\\Archive'); expect(store.record.roots).toEqual(['C:/Synthetic', 'D:/Archive'])
     await controller.removeRoot('c:/SYNTHETIC'); expect(store.record.roots).toEqual(['D:/Archive'])
-    await controller.saveRoots({ roots: ['E:/Notes', 'D:/Archive'], home: false, drives: false })
-    expect(store.record).toMatchObject({ roots: ['E:/Notes', 'D:/Archive'], home: false, drives: false })
+    await controller.saveRoots({ roots: ['E:/Notes', 'D:/Archive'], tops: ['root', 'drives', 'root', 'home'], home: false, drives: false })
+    expect(store.record).toMatchObject({ roots: ['E:/Notes', 'D:/Archive'], tops: ['root', 'drives', 'root', 'home'], home: false, drives: false })
+    // The settings page also learns where Home is, to show it in the list.
+    expect(controller.roots).toEqual({ roots: ['E:/Notes', 'D:/Archive'], tops: ['root', 'drives', 'root', 'home'], home: false, drives: false, homeFolder: 'C:/Users/Synthetic', writable: true })
     await expect(controller.addRoot('relative')).rejects.toThrow('absolute')
+    controller.dispose()
+  })
+
+  it('keeps Home and Drives in their places when a folder\'s menu adds or removes a root', async () => {
+    const store = memoryStore({ roots: ['C:/Atlas', 'D:/Beacon'], tops: ['root', 'home', 'root', 'drives'] })
+    const { controller } = await started(store, source({}))
+    await controller.addRoot('E:/Notes')
+    expect(store.record).toMatchObject({ roots: ['C:/Atlas', 'D:/Beacon', 'E:/Notes'], tops: ['root', 'home', 'root', 'root', 'drives'] })
+    // Removing Atlas leaves Home first: it was between Atlas and Beacon.
+    await controller.removeRoot('c:/atlas')
+    expect(store.record).toMatchObject({ roots: ['D:/Beacon', 'E:/Notes'], tops: ['home', 'root', 'root', 'drives'] })
+    expect(controller.snapshot.record.tops).toEqual(['home', 'root', 'root', 'drives'])
     controller.dispose()
   })
 

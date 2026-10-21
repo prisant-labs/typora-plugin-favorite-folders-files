@@ -220,6 +220,34 @@ describe('Favorites production panel', () => {
     f.button('Save').click(); expect(f.container.textContent).toContain('Finish adding')
     expect(f.actions.commit).not.toHaveBeenCalled()
   })
+  it('shows each Manage groups message beside the field or confirmation it is about', () => {
+    const f = fixture(); f.button('Manage groups').click()
+    const error = () => f.container.querySelector<HTMLElement>('.qa-page-error')
+    // An empty name: the message follows the New group field.
+    f.button('Add group').click()
+    expect(error()?.getAttribute('role')).toBe('alert')
+    expect(error()?.previousElementSibling?.contains(f.input('New group name'))).toBe(true)
+    expect(f.input('New group name').getAttribute('aria-invalid')).toBe('true')
+    f.setInput('New group name', 'R'); expect(error()).toBeNull()
+    // An unfinished name blocks Save at the field, not at the bottom of the page.
+    f.button('Save').click()
+    expect(error()?.textContent).toBe('Finish adding the group, or clear its name, before saving.')
+    expect(error()?.previousElementSibling?.contains(f.input('New group name'))).toBe(true)
+    expect(document.activeElement).toBe(f.input('New group name'))
+    f.setInput('New group name', '')
+    // A rename in progress: the message follows the rename field.
+    f.button('Rename group: Projects').click(); f.setInput('Rename group', ''); f.button('Apply name').click()
+    expect(error()?.previousElementSibling?.contains(f.input('Rename group'))).toBe(true)
+    f.button('Save').click()
+    expect(error()?.textContent).toBe('Apply or cancel the new name before saving.')
+    expect(error()?.previousElementSibling?.contains(f.input('Rename group'))).toBe(true)
+    f.button('Cancel rename').click(); expect(error()).toBeNull()
+    // A deletion waiting for confirmation: the message follows the confirmation. Save needs a change to be enabled.
+    f.setInput('New group name', 'Research'); f.button('Add group').click()
+    f.button('Delete group: Writing').click(); f.button('Save').click()
+    expect(error()?.textContent).toBe('Confirm or cancel the group deletion before saving.')
+    expect(error()?.previousElementSibling?.classList.contains('qa-delete-confirm')).toBe(true)
+  })
   it('creates and deletes groups in a draft, transferring members only on Save', async () => {
     const f = fixture(); f.button('Manage groups').click()
     f.setInput('New group name', 'Research'); f.button('Add group').click()
@@ -245,6 +273,8 @@ describe('Favorites production panel', () => {
     f.actions.commit.mockRejectedValueOnce(new Error('Synthetic save failure'))
     f.button('Save').click(); f.button('Save').click(); await f.flush()
     expect(f.actions.commit).toHaveBeenCalledOnce(); expect(f.container.textContent).toContain('Synthetic save failure')
+    // A failed save is reported beside the Save button.
+    expect(f.container.querySelector('.qa-page-error')?.closest('.qa-page-footer')).not.toBeNull()
     expect(f.input('Current document: Ideas.md').checked).toBe(true)
     f.button('Save').click(); await f.flush(); expect(f.container.querySelector('.qa-editor')).toBeNull()
   })

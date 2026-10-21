@@ -108,6 +108,28 @@ Typora itself. Use disposable folders with synthetic names. Until a step has
 been run and recorded, the README, the user guide and the release notes must
 say that the behavior is not yet tested in Typora.
 
+### Try a build in Typora
+
+Core loads a plugin from any folder under a vault's `.typora/plugins/` whose
+`manifest.json` names it, and a vault's own copy wins over the global one with
+the same ID. Enabling is per vault: the vault needs a `.typora/plugins.json`
+with `{"prisant-labs.favorite-folders-files": true}`.
+
+- `pnpm install:dev` builds a development version into
+  `test/vault/.typora/plugins/dist`. If the vault also holds a copy in
+  `.typora/plugins/prisant-labs.favorite-folders-files/`, such as a release
+  archive under test, remove one of them first. Core keeps one copy per plugin
+  ID, the last folder it lists, so with two copies the one that runs may not
+  be the one you built.
+- To try the release build, run `pnpm run build` and copy `main.js`,
+  `style.css`, `manifest.json`, `LICENSE.md` and `THIRD-PARTY-NOTICES.md` from
+  `dist/` into the vault's `.typora/plugins/prisant-labs.favorite-folders-files/`.
+  Don't run `pnpm run pack` for this while a release is in progress: it
+  rewrites the `plugin.zip` that the release check validated.
+- Core imports `main.js` with the version as a query string, so a running
+  Typora window keeps the old code after a rebuild with the same version. Quit
+  Typora completely, then open the vault again.
+
 ## Release
 
 A release ships what is already merged on `main`, through its own pull

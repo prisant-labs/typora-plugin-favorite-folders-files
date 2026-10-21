@@ -47,9 +47,28 @@
 .qa-settings__order { display: flex; flex: 0 1 200px; flex-direction: column; gap: 4px; min-width: 150px; margin: 0; padding: 0; list-style: none; }
 .qa-settings__order-item { display: flex; align-items: center; gap: 2px; min-height: 30px; padding: 0 3px 0 9px; border: 1px solid var(--settings-border); border-radius: 4px; background: var(--settings-bg); }
 .qa-settings__order-name { flex: 1; min-width: 0; color: var(--settings-text); font-size: 12px; }
+.qa-settings__order-icon { flex: none; width: 14px; height: 14px; margin-right: 7px; color: var(--settings-text); }
 .qa-settings__order-move { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: 0; padding: 0; border: 0; border-radius: 3px; color: var(--settings-text); background: transparent; cursor: pointer; }
 .qa-settings__order-move svg { width: 14px; height: 14px; stroke-width: 2; }
 .qa-settings__order-move:not(:disabled):hover { background: color-mix(in srgb, var(--settings-text) 8%, var(--settings-bg)); }
+// Browse's roots, Home and Drives: the same list style as the tab order. The ways to add a root
+// are a row of their own. Both rows grow, so their labels stay at the top.
+.qa-settings .qa-setting-row.qa-settings__browse-row { align-items: flex-start; }
+.qa-settings__roots { display: flex; flex: 1 1 280px; flex-direction: column; gap: 8px; min-width: 0; max-width: 460px; }
+.qa-settings__roots > .qa-settings__order { flex: none; min-width: 0; }
+.qa-settings__roots > .qa-settings__help { margin: 0; }
+.qa-settings__root-copy { display: flex; flex: 1; flex-direction: column; min-width: 0; padding: 4px 0; }
+.qa-settings__root-name { color: var(--settings-text); font-size: 12px; }
+.qa-settings__root-path { overflow: hidden; color: var(--settings-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.qa-settings__root-hidden .qa-settings__root-copy { opacity: .55; }
+.qa-settings__root-adders { display: flex; flex-wrap: wrap; gap: 6px; }
+.qa-settings__button { max-width: 100%; min-height: 30px; padding: 4px 10px; overflow: hidden; border: 1px solid var(--settings-border); border-radius: 4px; color: var(--settings-text); background: var(--settings-bg); font: inherit; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.qa-settings__button:not(:disabled):hover { background: color-mix(in srgb, var(--settings-text) 6%, var(--settings-bg)); }
+.qa-settings__root-form { display: flex; gap: 6px; }
+.qa-settings__root-form > input { box-sizing: border-box; flex: 1; min-width: 0; min-height: 30px; padding: 4px 7px; color: var(--settings-text); background: var(--settings-bg); border: 1px solid var(--settings-border); border-radius: 4px; font: inherit; font-size: 12px; }
+.qa-settings__root-form > input[aria-invalid=true] { border-color: var(--text-error, #a04430); }
+// A setting's own message, in its row; only a storage-wide problem uses the status line at the top.
+.qa-settings__error { flex-basis: 100%; color: var(--text-error, #a04430); font-size: 12px; line-height: 1.5; }
 .qa-settings__help { color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
 .qa-settings__status { color: var(--settings-text); font-size: 12px; line-height: 1.5; border-inline-start: 2px solid currentColor; padding-inline-start: 8px; }
 .qa-settings__preview { display: flex; flex-direction: column; flex: 0 0 340px; box-sizing: border-box; min-width: 0; max-width: 390px; padding: 14px; border: 1px solid var(--settings-border); border-radius: 8px; background: color-mix(in srgb, var(--settings-text) 3%, var(--settings-bg)); }
@@ -57,8 +76,8 @@
 .qa-settings__preview > .qa-settings__help { margin: 0 0 12px; }
 .qa-settings .qa-settings__preview-panel { flex: 1 0 460px; min-height: 460px; border: 1px solid var(--settings-border); border-radius: 5px; }
 .qa-settings__preview-status { margin: 8px 0 0; color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
-.qa-settings :is(.qa-setting-row > select, .qa-setting-row > input, .qa-settings__folder, .qa-settings__order-move):disabled { cursor: default; opacity: .45; }
-.qa-settings :is(.qa-setting-row > select, .qa-setting-row > input, .qa-settings__folder, .qa-settings__update, .qa-settings__order-move, .qa-settings__meta a):focus-visible { outline: 2px solid var(--active-file-border-color, var(--settings-text)); outline-offset: 2px; }
+.qa-settings :is(.qa-setting-row > select, .qa-setting-row > input, .qa-settings__folder, .qa-settings__order-move, .qa-settings__button, .qa-settings__root-form > input):disabled { cursor: default; opacity: .45; }
+.qa-settings :is(.qa-setting-row > select, .qa-setting-row > input, .qa-settings__folder, .qa-settings__update, .qa-settings__order-move, .qa-settings__button, .qa-settings__root-form > input, .qa-settings__meta a):focus-visible { outline: 2px solid var(--active-file-border-color, var(--settings-text)); outline-offset: 2px; }
 .qa-settings [hidden] { display: none !important; }
 @container (max-width: 850px) {
   .qa-settings__layout { flex-direction: column; gap: 16px; }

@@ -3,6 +3,7 @@ import { macBrowseSource, macCommandRunner, nodeBrowseSource, type BrowseSource,
 import { BrowseController } from './browse-runtime'
 import { BrowseStore } from './browse-store'
 import { FavoritesController } from './controller'
+import { folderChooser, type MacDialogBridge, type WindowsDialogBridge } from './folder-chooser'
 import { FavoritesRuntime } from './favorites-runtime'
 import { FavoritesPanelRenderer } from './favorites-panel'
 import { NativeHost, type NativeServices } from './host'
@@ -55,6 +56,10 @@ export default class QuickAccessPlugin extends Plugin {
     const isVisible = () => container.isConnected && container.getClientRects().length > 0
     const runtime = new FavoritesRuntime(host, collection, { readHistory, historyAvailable, isVisible })
     const browse = new BrowseController(new BrowseStore(app.platform), browseSource(app.platform, () => app.vault.path || undefined), app.platform, { isVisible })
+    // Typora's own folder dialog, for adding a Browse root; absent where this window has no dialog bridge.
+    const chooseFolder = folderChooser(app.platform, {
+      windows: () => (globalThis as { JSBridge?: WindowsDialogBridge }).JSBridge, mac: () => (globalThis as { bridge?: MacDialogBridge }).bridge,
+    })
     let disposed = false
     const settings = () => { if (!disposed) return openSettings(app) }
     // Core's plugin manager: Favorites reads its Marketplace data and calls its update, never GitHub itself.
@@ -88,7 +93,7 @@ export default class QuickAccessPlugin extends Plugin {
     const renderer = new FavoritesPanelRenderer(panel.containerEl, {
       change: operation => runtime.change(operation), commit: draft => runtime.commit(draft), open: (kind, path, options) => runtime.open(kind, path, options),
       reveal: (kind, path) => runtime.reveal(kind, path), settings: () => Promise.resolve(settings()),
-      update: confirmUpdate, browse,
+      update: confirmUpdate, browse, chooseFolder,
     })
     const push = () => {
       const version = notifier.state.version
@@ -110,6 +115,10 @@ export default class QuickAccessPlugin extends Plugin {
       tabs: {
         state: () => browse.tabs,
         subscribe: listener => browse.subscribe(() => listener()), setOrder: order => browse.setOrder(order),
+      },
+      browse: {
+        platform: app.platform, state: () => browse.roots, subscribe: listener => browse.subscribe(() => listener()),
+        save: change => browse.saveRoots(change), current: () => app.vault.path || undefined, choose: chooseFolder,
       },
     }); this.registerSettingTab(tab)
     this.registerCommand({ id: 'toggle', title: 'Toggle panel', scope: 'global', callback: () => { if (!disposed) app.workspace.sidebar.switch(QuickAccessSidebarPanel) } })

@@ -17,20 +17,36 @@ function track<T extends { close(): Promise<void> }>(store: T) { stores.push(sto
 describe('Browse record', () => {
   it('reads the defaults when nothing is stored', async () => {
     await expect(track(new BrowseStore('win32', DATABASE)).read()).resolves.toEqual(DEFAULT_BROWSE)
-    expect(DEFAULT_BROWSE).toEqual({ roots: [], home: true, drives: true, active: false, collapsed: false, expanded: [], order: ['favorites', 'recent', 'browse'] })
+    expect(DEFAULT_BROWSE).toEqual({ roots: [], home: true, drives: true, active: false, collapsed: false, expanded: [], order: ['favorites', 'recent', 'browse'], tops: ['home', 'drives'] })
   })
 
   it('round-trips roots, toggles and expanded folders', async () => {
-    const record: BrowseRecord = { roots: ['C:/Synthetic/Projects', 'D:/Archive'], home: false, drives: true, active: true, collapsed: true, expanded: ['folder:c:/synthetic/projects', 'drives'], order: ['browse', 'favorites', 'recent'] }
+    const record: BrowseRecord = { roots: ['C:/Synthetic/Projects', 'D:/Archive'], home: false, drives: true, active: true, collapsed: true, expanded: ['folder:c:/synthetic/projects', 'drives'], order: ['browse', 'favorites', 'recent'], tops: ['root', 'home', 'root', 'drives'] }
     await track(new BrowseStore('win32', DATABASE)).update(() => record)
     await expect(track(new BrowseStore('win32', DATABASE)).read()).resolves.toEqual(record)
   })
 
   it('normalizes root paths and drops invalid or repeated roots', () => {
     const record = normalizeBrowseRecord({ roots: ['C:\\Synthetic\\Projects\\', 'c:/synthetic/projects', 'relative/path', 7, 'D:/'], home: 'yes', active: 1, expanded: ['drives', 3, 'folder:d:/'] }, 'win32')
-    expect(record).toEqual({ roots: ['C:/Synthetic/Projects', 'D:/'], home: true, drives: true, active: false, collapsed: false, expanded: ['drives', 'folder:d:/'], order: ['favorites', 'recent', 'browse'] })
+    expect(record).toEqual({ roots: ['C:/Synthetic/Projects', 'D:/'], home: true, drives: true, active: false, collapsed: false, expanded: ['drives', 'folder:d:/'], order: ['favorites', 'recent', 'browse'], tops: ['root', 'root', 'home', 'drives'] })
     expect(normalizeBrowseRecord({ roots: ['/Synthetic/Notes', '/synthetic/notes'] }, 'darwin').roots).toEqual(['/Synthetic/Notes', '/synthetic/notes'])
     expect(normalizeBrowseRecord('garbage', 'darwin')).toEqual(DEFAULT_BROWSE)
+  })
+
+  it('keeps Home and Drives where they were placed among the roots', () => {
+    const tops = (value: unknown, roots: number) => normalizeBrowseRecord({ roots: Array.from({ length: roots }, (_, index) => `/Synthetic/Root ${index}`), tops: value }, 'darwin').tops
+    expect(tops(['home', 'root', 'drives', 'root'], 2)).toEqual(['home', 'root', 'drives', 'root'])
+    // A record from 0.2.0 has no places: roots first, then Home and Drives, as 0.2.0 shows them.
+    expect(tops(undefined, 2)).toEqual(['root', 'root', 'home', 'drives'])
+    // Unknown and repeated places are dropped; a missing Home or Drives goes last.
+    expect(tops(['drives', 'drives', 'outline', 3, 'root'], 1)).toEqual(['drives', 'root', 'home'])
+    // Roots added where places were not saved, such as by 0.2.0, follow the last placed root, or lead when none is placed.
+    expect(tops(['home', 'root', 'drives'], 3)).toEqual(['home', 'root', 'root', 'root', 'drives'])
+    expect(tops(['drives', 'home'], 2)).toEqual(['root', 'root', 'drives', 'home'])
+    // Places for roots that are gone are dropped from the end.
+    expect(tops(['root', 'home', 'root', 'drives', 'root'], 1)).toEqual(['root', 'home', 'drives'])
+    const record = normalizeBrowseRecord({ roots: ['/Synthetic'], tops: ['home', 'root', 'drives'] }, 'darwin'), copy = cloneBrowseRecord(record)
+    copy.tops.reverse(); expect(record.tops).toEqual(['home', 'root', 'drives'])
   })
 
   it('keeps the tab order a full list of the three tabs', () => {

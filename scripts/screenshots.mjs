@@ -22,7 +22,7 @@ export const screenshots = [
   { name: 'stacked', setup: `document.querySelector('[data-key="view"]').click(); [...document.querySelectorAll('.qa-view-options label')].find(label => label.textContent === 'Stacked').click()`, clip: panelClip(820) },
   { name: 'manage-groups', setup: `document.querySelector('[data-key="manage"]').click()`, clip: panelClip(480) },
   // Taller window: the settings dialog is 85vh, and the clip must not reach past its scrolling pane.
-  { name: 'settings', viewport: { width: 1400, height: 1450 }, setup: `document.querySelector('[data-key="settings"]').click()`, clip: `(() => {
+  { name: 'settings', viewport: { width: 1400, height: 1900 }, setup: `document.querySelector('[data-key="settings"]').click()`, clip: `(() => {
     const main = document.querySelector('#settings-dialog .typ-main')
     if (main.scrollHeight > main.clientHeight + 1) throw new Error('The settings page overflows its dialog; raise the settings screenshot viewport height.')
     const box = document.querySelector('.typ-setting-tab').getBoundingClientRect(); return { x: box.left, y: box.top, width: box.width, height: box.height }

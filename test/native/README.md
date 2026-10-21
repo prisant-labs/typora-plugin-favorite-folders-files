@@ -292,16 +292,20 @@ pill as implemented but not verified in Typora.
 ## Browse
 
 Browse reads folders with Node's `fs` on Windows, and with one quoted `ls`
-command through Typora's `controller.runCommand` bridge on macOS. Neither path
-has run in Typora yet. Use disposable folders with synthetic names.
+command through Typora's `controller.runCommand` bridge on macOS. The Windows
+path has run in Typora: the maintainer used the 0.2.0 release archive in Typora
+1.14.10 with Core 2.10.23 on 2026-10-19, without recording each step. The macOS
+path has not run in Typora yet. Use disposable folders with synthetic names.
 
 On both platforms:
 
 1. Open the panel and click **Browse**. It shows **Home** and **Drives**
    (Windows) or **Volumes** (macOS). Nothing is read until you expand a row.
-2. Open **Manage roots**, add the open folder with **Add current folder**, add a
-   second folder by typing its full path, reorder them, and **Save**. The roots
-   appear above Home in that order.
+2. Click the **gear** at the right end of the **Views** row to open **Manage
+   Browse roots**.
+   Add the open folder with **Add current folder**, add a second folder by
+   typing its full path, reorder them, and **Save**. The roots appear above
+   Home in that order.
 3. Expand a root, then a subfolder inside it. Only folders and Markdown files
    appear, folders first. A dot-folder, such as `.git`, does not appear.
 4. Open a Markdown file from Browse that sits **outside** the folder Typora has
@@ -345,9 +349,9 @@ Tab order and root order, on both platforms:
     order. Switch **Views** to **Stacked**: the sections follow it too.
 18. With two Typora windows open, change the tab order in one. The other
     follows within a few seconds. Restart Typora: the order is kept.
-19. In **Manage roots**, drag a root by its dotted grip above another, then
-    **Save**. The tree shows the new order. Press **Escape** in the middle of a
-    drag: nothing moves.
+19. In **Manage Browse roots**, drag a root by its dotted grip above another,
+    then **Save**. The tree shows the new order. Press **Escape** in the middle
+    of a drag: nothing moves.
 
 More than one drive, on Windows:
 
@@ -358,6 +362,34 @@ More than one drive, on Windows:
 21. If a network share is available, add it as a root by its `\\server\share`
     path, and expand it. Record whether its contents appear and how long they
     take.
+
+Choosing roots and the settings page, on both platforms:
+
+22. On **Manage Browse roots**, click **Choose folder…**. Typora's own folder
+    dialog opens at the folder Typora has open. Pick a disposable folder: it
+    joins the list, and nothing is saved until **Save**. Open the dialog again
+    and cancel it: nothing changes and no message appears. On Windows, record
+    whether the chosen folder appears in the Windows Recent list (it should
+    not). On macOS, record whether the dialog opens at all.
+23. Type `Notes` in the path field and click **Add folder**. The message
+    "Enter a full folder path" appears directly below the path field, not at
+    the bottom of the page. Typing clears it. Choose a folder that is already a
+    root: "That folder is already a root." appears in the same place.
+24. In Typora's settings, under **Favorites → Browse**, move a root, remove
+    one, add one with **Choose folder…** and one by its path, and hide
+    **Home** with its eye button. Each change shows in the panel at once and
+    survives a restart.
+25. In the settings, type a relative path such as `Notes` and click **Add
+    folder**. The message appears in the **Add a root** row, below the path
+    field, and the typed text stays.
+26. On **Manage Browse roots**, drag **Home** above your first root, move
+    **Drives** (**Volumes**) up one place with its arrow, and hide it with its
+    eye button. It stays in the list, dimmed and marked **Hidden**. **Save**:
+    the tree shows Home first and no Drives. Show Drives again and **Save**: it
+    comes back in the same place. Restart Typora: the order is kept.
+27. With Home placed first, expand a folder in a window that still runs 0.2.0.
+    In the newer window, Home and Drives go back to after the roots, and every
+    root is still there.
 
 Record each step in the native acceptance worksheet. Until then, describe
 Browse as implemented but not verified in Typora.

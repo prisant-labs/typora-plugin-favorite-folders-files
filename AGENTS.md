@@ -36,10 +36,19 @@
   0.1.4 rejects the whole record when it meets an unknown key. Keep new
   settings and view state in a record of their own through `SharedRecordStore`
   (`src/record-store.ts`), as `updates` and `browse` do.
+- A key added to the `browse` record must be safe to lose. Version 0.2.0 keeps
+  only the keys it knows when it saves Browse, so a 0.2.0 window drops newer
+  ones, such as `tops`. Keep the data 0.2.0 understands where 0.2.0 reads it
+  (the roots stay in `roots`), and let the new key only refine it.
 - Do not use `structuredClone` in code that runs in Typora; older macOS WebKit
   lacks it. Copy explicitly, as `cloneBrowseRecord` does.
 - Browse only reads. On macOS its single shell command is a quoted `/bin/ls`;
   do not add other shell commands, and always quote paths with `shellQuote`.
+- **Choose folder…** uses Typora's own folder dialog, as Typora calls it:
+  `dialog.showOpenDialog` with `dontAddToRecent` on Windows, and
+  `path.selectFolderOrFile` on macOS (`src/folder-chooser.ts`). Never use
+  `controller.selectFolder` to pick a folder; it switches the folder Typora has
+  open.
 
 ## Development expectations
 
