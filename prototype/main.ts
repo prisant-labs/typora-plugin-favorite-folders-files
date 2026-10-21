@@ -9,7 +9,7 @@ import { normalizeHistory, type HistoryInput } from '../src/native-history'
 import { renderSettings, type BrowseSettingError } from '../src/settings-ui'
 import { buildUpdateConfirmation } from '../src/update-confirmation'
 
-const INSTALLED = '0.2.0'
+const INSTALLED = '0.3.0'
 const REPO = 'prisant-labs/typora-plugin-favorite-folders-files'
 const mount = document.querySelector<HTMLElement>('#panel-mount')!
 const status = document.querySelector<HTMLElement>('#host-status')!
@@ -138,7 +138,7 @@ function fixture(name: string) {
   if (name === 'unavailable') nativeFixture = { status: 'unavailable', message: 'Native Recent history is not available in this candidate.' }
   if (name === 'recording-off') nativeFixture = { status: 'recording-off' }
   if (name === 'per-kind') nativeFixture = { ...nativeFixture, order: 'per-kind', entries: nativeFixture.entries!.map(({ kind, path }) => ({ kind, path })) }
-  update = name === 'update-available' ? '0.2.1' : undefined
+  update = name === 'update-available' ? '0.3.1' : undefined
   // Fixture-only Browse record and folders; the Browse controller is production code.
   browse?.dispose(); rootInput = ''; browseError = undefined
   browseRecord = normalizeBrowseRecord({ roots: name === 'empty' ? [] : ['/Projects', '/Writing'], expanded: name === 'empty' ? [] : ['folder:/Projects', 'folder:/Projects/Atlas'] }, 'darwin')
