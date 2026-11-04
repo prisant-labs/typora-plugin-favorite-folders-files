@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import { copyFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
 
-import archiver from 'archiver'
+import { ZipArchive } from 'archiver'
 
 import { releaseFiles } from './scripts/release.mjs'
 
@@ -42,7 +42,7 @@ async function createArchive({ dist, output, brandedOutput }) {
   await mkdir(path.dirname(brandedOutput), { recursive: true })
 
   const outputStream = fs.createWriteStream(output)
-  const archive = archiver('zip', { zlib: { level: 9 } })
+  const archive = new ZipArchive({ zlib: { level: 9 } })
   const completed = new Promise((resolve, reject) => {
     outputStream.on('close', resolve)
     outputStream.on('error', reject)

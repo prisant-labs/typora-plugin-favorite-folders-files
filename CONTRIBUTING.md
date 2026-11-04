@@ -95,6 +95,11 @@ changes the preview page's fingerprint. To update npm packages by hand:
 4. A new package that ends up in `main.js` needs its license in
    `THIRD-PARTY-NOTICES.md`.
 
+`pnpm.overrides` in `package.json` moves the `minimatch` under `readdir-glob` to
+a patched version, because `archiver` 8 still asks for an older one. `pack.js`
+never uses `archiver`'s glob feature. Remove the override once `archiver` asks
+for a patched version itself.
+
 ## Issues and security reports
 
 Bug reports and feature requests use the issue forms in
