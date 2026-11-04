@@ -164,6 +164,9 @@ to Community Plugin "vaults", and an FAQ.
   [native checks](test/native/README.md#browse) are still in progress. On
   macOS, reading folders such as Documents or Desktop may make macOS ask
   whether Typora may access them.
+- **Choose file…**, **Choose folder…** and typed paths on **Add Favorite** have
+  not yet been tested in Typora, on Windows or macOS. They have automated tests
+  and were tried in the preview page.
 - **Recently opened** sorting needs a date on every entry in Typora's Recent
   list. When some entries have none, it stays unavailable and each Recent tab
   keeps Typora's own order.

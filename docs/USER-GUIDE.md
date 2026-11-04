@@ -69,7 +69,8 @@ renames or deletes anything on disk.
   folder…**, or type a full path and click **Use path**. A typed path with a
   Markdown extension, such as `.md`, is saved as a document, and any other is
   saved as a folder. Favorites doesn't check that a typed path exists. If it
-  doesn't, the row is marked when you try to open it.
+  doesn't, the row is marked when you try to open it. These ways of adding have
+  not yet been tested in Typora.
 - **Move or remove a Favorite:** use the row's **⋯** menu. Removing only removes
   the shortcut, and an **Undo** button appears.
 - **Manage groups:** click the grid button to create, rename, delete and reorder
