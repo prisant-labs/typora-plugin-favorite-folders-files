@@ -106,8 +106,10 @@ Windows see each other's changes by polling. Every 2 seconds,
 `FavoritesRuntime` reads the `current` record through `FavoritesController`,
 and `BrowseController` reads the `browse` record. Each publishes only when the
 read brings something new, so an idle panel is never redrawn. Typora's Recent list is not polled. It is read when the
-panel opens, when the window regains focus, and after Favorites opens
-something.
+panel opens, when the window regains focus, and after Favorites or Typora opens
+something. Background reads run at most once a second. A signal that arrives
+during a read, or too soon after one, is not dropped: it causes one more read
+when the second ends, because the earlier read may have missed the change.
 
 ## Talking to Typora
 

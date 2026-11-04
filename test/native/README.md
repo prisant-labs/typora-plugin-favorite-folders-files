@@ -86,6 +86,10 @@ Keep real paths, screenshots and native history in local-only receipts.
   scroll the list to the bottom and wait five seconds; repeat after clicking a
   row. The list should stay where you left it. Before 0.1.4 it jumped back to
   the top within about two seconds.
+- With Recent on screen, open two files within a second, using **File → Open
+  Recent**. Without changing window or panel, both should reach the top of
+  **Files** within about two seconds. Before 0.4.0 the second could wait for the
+  next focus or panel show.
 - Repeat host checks with Core tabs enabled/disabled and separately on macOS.
 - Check that the panel fills the sidebar at narrow and wide sidebar widths, on
   Windows and on macOS. On macOS, Typora's own header row (the "Outline" or
@@ -100,8 +104,9 @@ Keep real paths, screenshots and native history in local-only receipts.
 On Windows, Recent is a live view of Typora's native read-only Recent getter.
 It is read only while the Favorites panel is visible, or when **Favorites: Copy
 Recent diagnostics** runs: on show, on window focus
-and after navigation events, throttled and coalesced. The storage poll never
-reads it. An unchanged list is not republished. The list exists only in memory; nothing is
+and after navigation events, throttled and coalesced. A signal held back by the
+throttle or by a running read causes one more read when the interval ends. The
+storage poll never reads it. An unchanged list is not republished. The list exists only in memory; nothing is
 saved, and the settings page and its preview never show it. Clicking the folder
 already open does nothing; on Windows, Ctrl+click opens a new window through
 `app.openFileOrFolder` with `forceCreateWindow`.

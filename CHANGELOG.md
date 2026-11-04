@@ -3,6 +3,21 @@
 All notable changes to Favorites for Typora are recorded here. Versions follow
 [semantic versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+
+- **Recent no longer misses a change that arrives right after a read.** Opening
+  files or folders quickly could leave Recent out of date until the panel or
+  the window was next shown. Favorites now reads the list once more about a
+  second later. This has not been tried in Typora yet.
+
+### Changed
+
+- The README and the user guide now explain that **Recent → Folders** lists only
+  the folders Typora recorded, and that on Windows opening a file doesn't add
+  its folder.
+
 ## 0.3.0 (2026-10-20)
 
 ### Added

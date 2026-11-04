@@ -24,6 +24,8 @@ export class FavoritesRuntime {
   private cancelHistoryRead?: () => void
   private historyReadAt?: number
   private historyError?: string
+  private historyAgain = false
+  private historyHeldBack?: ReturnType<typeof setTimeout>
 
   constructor(private readonly host: Host, readonly collection: FavoritesController, private readonly options: {
     pollMilliseconds?: number
@@ -131,12 +133,19 @@ export class FavoritesRuntime {
   /**
    * Live view of Typora's own Recent list: read while the panel is visible, kept in memory,
    * never saved or written back. Background triggers are throttled; `force` skips the throttle.
+   * A trigger that a read or the throttle holds back reads once more when the interval ends,
+   * because the list may have changed after the last read began.
    */
   syncHistory(force = false): Promise<void> {
     if (!this.historyAvailable || !(this.options.isVisible?.() ?? true)) return Promise.resolve()
-    if (this.historyTask) return this.historyTask
+    if (this.historyTask) { this.historyAgain = true; return this.historyTask }
     const readAt = this.historyReadAt
-    if (!force && readAt !== undefined && Date.now() - readAt < (this.options.historyMinIntervalMilliseconds ?? 1000)) return Promise.resolve()
+    const wait = force || readAt === undefined ? 0 : readAt + (this.options.historyMinIntervalMilliseconds ?? 1000) - Date.now()
+    if (wait > 0) {
+      this.historyHeldBack ??= setTimeout(() => { this.historyHeldBack = undefined; void this.syncHistory() }, wait)
+      return Promise.resolve()
+    }
+    clearTimeout(this.historyHeldBack); this.historyHeldBack = undefined
     const generation = ++this.historyGeneration, firstRead = this.history.status !== 'ready'
     const before = JSON.stringify([this.history, this.historyError])
     let timer: ReturnType<typeof setTimeout>
@@ -160,6 +169,7 @@ export class FavoritesRuntime {
       this.historyTask = undefined; this.cancelHistoryRead = undefined; this.historyReadAt = Date.now()
       // An unchanged list is not republished, so background reads never disturb the panel.
       if (firstRead || JSON.stringify([this.history, this.historyError]) !== before) this.publish()
+      if (this.historyAgain) { this.historyAgain = false; void this.syncHistory() }
     })
     if (firstRead) this.publish()
     return this.historyTask
@@ -192,6 +202,7 @@ export class FavoritesRuntime {
     if (this.disposed) return
     this.disposed = true
     this.historyGeneration++; this.cancelHistoryRead?.(); this.cancelHistoryRead = undefined; this.historyTask = undefined
+    clearTimeout(this.historyHeldBack); this.historyHeldBack = undefined
     this.history = normalizeHistory(undefined, this.host.platform); this.historyError = undefined
     this.disposers.splice(0).forEach(dispose => dispose())
     this.host.dispose?.()

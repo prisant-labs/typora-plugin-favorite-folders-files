@@ -85,6 +85,9 @@ Recent**, split into **Files** and **Folders**.
 - Favorites reads the list while the Favorites panel is visible, and again when
   you open a file or folder, or switch back to the Typora window. It also reads
   it when you run **Favorites: Copy Recent diagnostics**.
+- **Folders** lists only the folders Typora recorded. On Windows, Typora records
+  a folder when you open it as a folder. Opening a file doesn't add the file's
+  folder, even when Typora shows that folder in its sidebar.
 - It is the same in every Typora window, and it survives restarts, because
   Typora keeps it.
 - Favorites never saves the list, sends it anywhere, or changes it. To clear
@@ -344,6 +347,11 @@ Typora's own list may be empty (check **File → Open Recent**). Recent lists
 only Markdown files, so other file types don't appear under **Files**. On
 macOS, Favorites 0.1.2 and earlier show a message there instead, because they
 read Recent on Windows only.
+
+**I opened a file, so why isn't its folder under Recent → Folders?**
+Favorites shows the list Typora keeps, and on Windows Typora records a folder
+only when you open it as a folder. Compare it with **File → Open Recent**. To
+keep a file's folder within reach, add it to your Favorites with **+**.
 
 **Recent shows an error or the wrong files. How do I report it?**
 Run **Favorites: Copy Recent diagnostics** from the command palette. It reads

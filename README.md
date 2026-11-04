@@ -32,6 +32,8 @@ choose, and stays put when Typora opens a file somewhere else.
 - Shows Typora's own Recent list (**File → Open Recent**) in **Files** and
   **Folders** tabs, with no import step. It stays current as you open files and
   folders, and it's the same in every Typora window.
+- **Folders** lists only the folders Typora recorded. On Windows, opening a file
+  doesn't add the file's folder.
 - Favorites only reads the list while the panel is visible, or when you run
   **Favorites: Copy Recent diagnostics**. It never saves, sends or changes it.
 - On macOS, Recent is new in 0.1.3. Its **Files** and **Folders** tabs have

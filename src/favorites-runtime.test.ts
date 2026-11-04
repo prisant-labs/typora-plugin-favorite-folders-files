@@ -63,6 +63,69 @@ describe('Favorites native runtime', () => {
       expect(listener).toHaveBeenCalledOnce(); expect(f.runtime.snapshot.history.entries).toEqual([])
     } finally { f.runtime.dispose() }
   })
+  it('reads once more when the interval ends after signals the throttle held back', async () => {
+    vi.useFakeTimers()
+    const readHistory = vi.fn(async () => ({ files: [], folders: [{ path: 'C:/Fixture/Old', date: 10 }] }))
+    const f = fixture({ readHistory, historyMinIntervalMilliseconds: 1000 })
+    try {
+      await f.runtime.start(); await vi.advanceTimersByTimeAsync(0)
+      readHistory.mockImplementation(async () => ({ files: [], folders: [{ path: 'C:/Fixture/New', date: 20 }] }))
+      f.emit(); window.dispatchEvent(new Event('focus')); await vi.advanceTimersByTimeAsync(100); f.emit()
+      await vi.advanceTimersByTimeAsync(899)
+      expect(readHistory).toHaveBeenCalledOnce()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(readHistory).toHaveBeenCalledTimes(2)
+      expect(f.runtime.snapshot.history.entries.map(row => row.path)).toEqual(['C:/Fixture/New'])
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(readHistory).toHaveBeenCalledTimes(2)
+    } finally { f.runtime.dispose() }
+  })
+  it('reads once more after a signal that arrives during a read, which may already be stale', async () => {
+    vi.useFakeTimers()
+    let release!: (value: unknown) => void
+    const readHistory = vi.fn((): Promise<unknown> => new Promise(resolve => { release = resolve }))
+    const f = fixture({ readHistory, historyMinIntervalMilliseconds: 1000 })
+    try {
+      await f.runtime.start(); await vi.advanceTimersByTimeAsync(0)
+      expect(readHistory).toHaveBeenCalledOnce()
+      f.emit(); f.emit()
+      release({ files: [], folders: [{ path: 'C:/Fixture/Old', date: 10 }] }); await vi.advanceTimersByTimeAsync(999)
+      expect(readHistory).toHaveBeenCalledOnce()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(readHistory).toHaveBeenCalledTimes(2)
+      release({ files: [], folders: [{ path: 'C:/Fixture/New', date: 20 }] }); await vi.advanceTimersByTimeAsync(5000)
+      expect(readHistory).toHaveBeenCalledTimes(2)
+      expect(f.runtime.snapshot.history.entries.map(row => row.path)).toEqual(['C:/Fixture/New'])
+    } finally { f.runtime.dispose() }
+  })
+  it('lets a forced read replace a held-back read', async () => {
+    vi.useFakeTimers()
+    const readHistory = vi.fn(async () => ({ files: [], folders: [] }))
+    const f = fixture({ readHistory, historyMinIntervalMilliseconds: 1000 })
+    try {
+      await f.runtime.start(); await vi.advanceTimersByTimeAsync(0)
+      f.emit(); await f.runtime.syncHistory(true)
+      expect(readHistory).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(readHistory).toHaveBeenCalledTimes(2)
+    } finally { f.runtime.dispose() }
+  })
+  it('drops a held-back read when the panel is hidden or unloaded by the time it is due', async () => {
+    vi.useFakeTimers()
+    let visible = true
+    const readHistory = vi.fn(async () => ({ files: [], folders: [] }))
+    const f = fixture({ readHistory, historyMinIntervalMilliseconds: 1000, isVisible: () => visible })
+    try {
+      await f.runtime.start(); await vi.advanceTimersByTimeAsync(0)
+      f.emit(); visible = false; await vi.advanceTimersByTimeAsync(5000)
+      expect(readHistory).toHaveBeenCalledOnce()
+      visible = true; await f.runtime.syncHistory(true)
+      expect(readHistory).toHaveBeenCalledTimes(2)
+      f.emit(); f.runtime.dispose(); await vi.advanceTimersByTimeAsync(5000)
+      expect(readHistory).toHaveBeenCalledTimes(2)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally { f.runtime.dispose() }
+  })
   it('publishes nothing when the storage poll finds nothing new, and each real change once', async () => {
     vi.useFakeTimers()
     const f = fixture({ pollMilliseconds: 2000 })
@@ -151,7 +214,7 @@ describe('Favorites native runtime', () => {
     const readHistory = vi.fn(async () => ({ files: [{ path: '/Fixture/Recent.md' }], folders: [{ path: '/Fixture/Notes' }] }))
     const f = fixture({ readHistory })
     const mac = new FavoritesRuntime({ ...f.host, platform: 'darwin' }, new FavoritesController(f.store, 'darwin'), { pollMilliseconds: 0, readHistory, historyAvailable: () => true })
-    // Start reads once; an immediate background sync joins or is throttled rather than reading again.
+    // Start reads once; an immediate background sync joins that read or waits out the throttle.
     await mac.start(); await mac.syncHistory()
     expect(readHistory).toHaveBeenCalledOnce()
     expect(mac.snapshot.history).toMatchObject({ status: 'ready', order: 'per-kind' })
