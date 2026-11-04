@@ -59,7 +59,7 @@ data.
 | `browse-store.ts` | The `browse` record and its normalization |
 | `browse-fs.ts` | Folder listing: Node's `fs` on Windows, a quoted `ls` on macOS |
 | `browse-model.ts` | Pure tree logic: top rows, visible rows, folders that still need a listing, adding a root (`withRoot`), and the arrangeable list of roots, Home and Drives (`browsePlaces`, `splitPlaces`) |
-| `folder-chooser.ts` | Typora's own folder dialog, for adding a Browse root |
+| `folder-chooser.ts` | Typora's own file and folder dialogs, for adding a Browse root or a Favorite |
 | `browse-runtime.ts` | `BrowseController`: listings, refreshes and optimistic saves |
 | `update-check.ts`, `update-store.ts`, `update-confirmation.ts`, `update-dialog.ts` | The update pill and its daily check |
 | `favorites-panel.ts` | The sidebar renderer, shared by Typora, the preview page and the settings preview |
@@ -123,6 +123,8 @@ something.
 | Browse on macOS | `bridge.callHandler('controller.runCommand')` running `/bin/ls -1pL` on the quoted folder path |
 | Choose a Browse root (Windows) | `JSBridge.invoke('dialog.showOpenDialog')` with `openDirectory` and `dontAddToRecent`, as Typora picks an image folder |
 | Choose a Browse root (macOS) | `bridge.callHandler('path.selectFolderOrFile', { dir: true })`, as Typora picks an export folder. Not `controller.selectFolder`, which switches the open folder |
+| Choose a Favorite's file (Windows) | `JSBridge.invoke('dialog.showOpenDialog')` with `openFile` and `dontAddToRecent` |
+| Choose a Favorite's file (macOS) | `bridge.callHandler('path.selectFolderOrFile', { dir: false, filters })`, as Typora's own file picker does |
 | Home folder | Core's `os.homedir()` |
 | Updates | Core's plugin manager (`app.plugins`): its Marketplace data and `updatePlugin` |
 

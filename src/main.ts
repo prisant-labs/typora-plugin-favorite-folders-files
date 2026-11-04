@@ -3,7 +3,7 @@ import { macBrowseSource, macCommandRunner, nodeBrowseSource, type BrowseSource,
 import { BrowseController } from './browse-runtime'
 import { BrowseStore } from './browse-store'
 import { FavoritesController } from './controller'
-import { folderChooser, type MacDialogBridge, type WindowsDialogBridge } from './folder-chooser'
+import { folderChooser, markdownFileChooser, type MacDialogBridge, type WindowsDialogBridge } from './folder-chooser'
 import { FavoritesRuntime } from './favorites-runtime'
 import { FavoritesPanelRenderer } from './favorites-panel'
 import { NativeHost, type NativeServices } from './host'
@@ -56,10 +56,12 @@ export default class QuickAccessPlugin extends Plugin {
     const isVisible = () => container.isConnected && container.getClientRects().length > 0
     const runtime = new FavoritesRuntime(host, collection, { readHistory, historyAvailable, isVisible })
     const browse = new BrowseController(new BrowseStore(app.platform), browseSource(app.platform, () => app.vault.path || undefined), app.platform, { isVisible })
-    // Typora's own folder dialog, for adding a Browse root; absent where this window has no dialog bridge.
-    const chooseFolder = folderChooser(app.platform, {
+    // Typora's own dialogs, for adding a Browse root or a Favorite; absent where this window has no dialog bridge.
+    const dialogBridges = {
       windows: () => (globalThis as { JSBridge?: WindowsDialogBridge }).JSBridge, mac: () => (globalThis as { bridge?: MacDialogBridge }).bridge,
-    })
+    }
+    const chooseFolder = folderChooser(app.platform, dialogBridges)
+    const chooseFile = markdownFileChooser(app.platform, dialogBridges)
     let disposed = false
     const settings = () => { if (!disposed) return openSettings(app) }
     // Core's plugin manager: Favorites reads its Marketplace data and calls its update, never GitHub itself.
@@ -93,7 +95,7 @@ export default class QuickAccessPlugin extends Plugin {
     const renderer = new FavoritesPanelRenderer(panel.containerEl, {
       change: operation => runtime.change(operation), commit: draft => runtime.commit(draft), open: (kind, path, options) => runtime.open(kind, path, options),
       reveal: (kind, path) => runtime.reveal(kind, path), settings: () => Promise.resolve(settings()),
-      update: confirmUpdate, browse, chooseFolder,
+      update: confirmUpdate, browse, chooseFolder, chooseFile,
     })
     const push = () => {
       const version = notifier.state.version
