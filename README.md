@@ -18,6 +18,8 @@ choose, and stays put when Typora opens a file somewhere else.
 **Favorites and groups**
 
 - Save the current document or folder with **+**, or click the star on any row.
+- Save any other Markdown file or folder from the same **+** page: pick it with
+  Typora's own dialog, or type its path.
 - Group Favorites however you like. Folders and files can share a group, and
   anything without a group stays in **Ungrouped**.
 - Create, rename, delete and reorder groups, and arrange the Favorites inside
@@ -164,6 +166,9 @@ to Community Plugin "vaults", and an FAQ.
   [native checks](test/native/README.md#browse) are still in progress. On
   macOS, reading folders such as Documents or Desktop may make macOS ask
   whether Typora may access them.
+- **Choose file…**, **Choose folder…** and typed paths on **Add Favorite** have
+  not yet been tested in Typora, on Windows or macOS. They have automated tests
+  and were tried in the preview page.
 - **Recently opened** sorting needs a date on every entry in Typora's Recent
   list. When some entries have none, it stays unavailable and each Recent tab
   keeps Typora's own order.

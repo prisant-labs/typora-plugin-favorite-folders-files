@@ -64,6 +64,12 @@ async function chooseFolder() {
   status.textContent = choice ? `Simulated folder chooser: picked ${choice}. In Typora, this is Typora's own folder dialog.` : 'Simulated folder chooser: cancelled.'
   return choice
 }
+/** Fixture-only stand-in for Typora's file dialog. */
+async function chooseFile() {
+  const choice = '/Home/Notes/Meeting notes.md'
+  status.textContent = `Simulated file chooser: picked ${choice}. In Typora, this is Typora's own file dialog.`
+  return choice
+}
 function openUpdate() {
   const dialog = document.querySelector<HTMLDialogElement>('#update-dialog')!, version = update
   if (!version) return
@@ -102,6 +108,7 @@ function createRenderer() { return new FavoritesPanelRenderer(mount, {
     addRoot: path => browse!.addRoot(path), removeRoot: path => browse!.removeRoot(path), saveRoots: change => browse!.saveRoots(change),
   },
   chooseFolder,
+  chooseFile,
 }) }
 function render() {
   renderer.update({ state, current, unavailable, error, platform: 'darwin', history: normalizeHistory(nativeFixture, 'darwin'), historySource: { available: true, loading: false }, writable: true, update: update ? { version: update } : undefined, browse: browse?.snapshot })

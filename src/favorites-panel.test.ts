@@ -9,7 +9,7 @@ import { normalizeHistory } from './native-history'
 
 const cleanups: Array<() => void> = []
 afterEach(() => { cleanups.splice(0).forEach(fn => fn()); document.body.replaceChildren(); document.body.classList.remove('native-window'); vi.restoreAllMocks() })
-function fixture() {
+function fixture(choosers: { chooseFile?: (defaultPath?: string) => Promise<string | undefined>; chooseFolder?: (defaultPath?: string, title?: string) => Promise<string | undefined> } = {}) {
   let state = createFavoritesState()
   const apply = (operation: FavoritesOperation) => { state = applyFavoritesOperation(state, operation, 'darwin') }
   apply({ type: 'group:create', id: 'work', name: 'Projects' })
@@ -21,7 +21,7 @@ function fixture() {
   const actions = {
     change: vi.fn(async (op: FavoritesOperation) => { apply(op); render() }),
     commit: vi.fn(async (draft: FavoritesDraft) => { state = replayFavoritesDraft(state, draft, 'darwin'); render(); return state }),
-    open: vi.fn(), reveal: vi.fn(), settings: vi.fn(),
+    open: vi.fn(), reveal: vi.fn(), settings: vi.fn(), ...choosers,
   }
   const renderer = new FavoritesPanelRenderer(container, actions)
   const render = () => renderer.update({ state, current, platform: 'darwin', history, writable: true })
@@ -36,6 +36,149 @@ function fixture() {
   const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve() }
   return { container, actions, renderer, current, render, button, input, setInput, flush, apply, get state() { return state } }
 }
+
+describe('Add Favorite by a chosen or typed location', () => {
+  const saved = (f: ReturnType<typeof fixture>, path: string) => f.state.favorites.find(row => row.path === path)
+
+  it('saves a typed Markdown path as a document and any other path as a folder', async () => {
+    const f = fixture(); f.button('Add Favorite').click()
+    f.setInput('Location path', '  /Fixture/Typed/Plan.md  '); f.button('Use path').click()
+    expect(f.input('Chosen document: Plan.md').checked).toBe(true)
+    expect(f.input('Location path').value).toBe('')
+    f.button('Save').click(); await f.flush()
+    expect(saved(f, '/Fixture/Typed/Plan.md')).toMatchObject({ kind: 'file', groupId: UNGROUPED_GROUP_ID })
+
+    f.button('Add Favorite').click()
+    f.setInput('Location path', '/Fixture/Typed/Folder.v2'); f.button('Use path').click()
+    expect(f.input('Chosen folder: Folder.v2').checked).toBe(true)
+    f.button('Save').click(); await f.flush()
+    expect(saved(f, '/Fixture/Typed/Folder.v2')?.kind).toBe('folder')
+  })
+  it('judges a typed path by its extension after normalizing it', () => {
+    const f = fixture(); f.button('Add Favorite').click()
+    f.setInput('Location path', '/Fixture/Typed/Trailing.md/'); f.button('Use path').click()
+    expect(f.input('Chosen document: Trailing.md').checked).toBe(true)
+  })
+
+  it('accepts the quotes that Copy as path adds, and Enter in the field', () => {
+    const f = fixture(); f.button('Add Favorite').click()
+    f.setInput('Location path', '"/Fixture/Typed/Plan.md"')
+    f.input('Location path').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    expect(f.input('Chosen document: Plan.md').checked).toBe(true)
+  })
+
+  it('explains a path that is not absolute below the field, keeps the text, and clears the message on typing', () => {
+    const f = fixture(); f.button('Add Favorite').click()
+    f.setInput('Location path', 'Notes'); f.button('Use path').click()
+    const message = f.container.querySelector('[data-field-error="add-location"]')
+    expect(message?.textContent).toContain('Enter a full path')
+    expect(f.input('Location path').value).toBe('Notes')
+    expect(f.input('Location path').getAttribute('aria-invalid')).toBe('true')
+    expect(f.container.querySelector('input[aria-label^="Chosen"]')).toBeNull()
+    f.setInput('Location path', 'Notes2')
+    expect(f.container.querySelector('[data-field-error="add-location"]')).toBeNull()
+  })
+
+  it('will not save or silently drop a typed path that was never used', () => {
+    const f = fixture(); f.button('Add Favorite').click(); f.input('Current document: Ideas.md').click()
+    f.setInput('Location path', '/Fixture/Typed/Plan.md'); f.button('Save').click()
+    expect(f.container.querySelector('[data-field-error="add-location"]')?.textContent).toContain('Use the path')
+    expect(f.actions.commit).not.toHaveBeenCalled()
+
+    const other = fixture(); other.button('Add Favorite').click()
+    other.setInput('Location path', '/Fixture/Typed/Plan.md'); other.button('Cancel').click()
+    expect(other.container.textContent).toContain('Discard changes?')
+  })
+
+  it('offers Typora\'s dialogs starting at the open folder, into the group the page has selected', async () => {
+    const chooseFile = vi.fn(async () => '/Fixture/Picked/Note.md')
+    const chooseFolder = vi.fn(async () => '/Fixture/Picked')
+    const f = fixture({ chooseFile, chooseFolder }); f.button('Add Favorite').click()
+    f.button('Choose file…').click(); await f.flush()
+    expect(chooseFile).toHaveBeenCalledWith('/Fixture/Research')
+    expect(f.input('Chosen document: Note.md').checked).toBe(true)
+    const group = f.container.querySelector<HTMLSelectElement>('[data-key="add-destination"]')!
+    group.value = 'writing'; group.dispatchEvent(new Event('change', { bubbles: true }))
+    f.button('Save').click(); await f.flush()
+    expect(saved(f, '/Fixture/Picked/Note.md')).toMatchObject({ kind: 'file', groupId: 'writing' })
+
+    f.button('Add Favorite').click(); f.button('Choose folder…').click(); await f.flush()
+    expect(chooseFolder).toHaveBeenCalledWith('/Fixture/Research', 'Choose a folder for Favorites')
+    expect(f.input('Chosen folder: Picked').checked).toBe(true)
+  })
+
+  it('shows one chosen location at a time, beside the current ones', async () => {
+    const replies = ['/Fixture/First.md', '/Fixture/Second.md']
+    const f = fixture({ chooseFile: async () => replies.shift() }); f.button('Add Favorite').click()
+    f.button('Choose file…').click(); await f.flush()
+    f.button('Choose file…').click(); await f.flush()
+    expect(f.container.querySelector('input[aria-label="Chosen document: First.md"]')).toBeNull()
+    expect(f.input('Chosen document: Second.md').checked).toBe(true)
+    expect(f.input('Current document: Ideas.md').checked).toBe(false)
+  })
+
+  it('selects a current location instead of listing it twice', async () => {
+    const f = fixture({ chooseFile: async () => '/Fixture/Ideas.md' }); f.button('Add Favorite').click()
+    f.button('Choose file…').click(); await f.flush()
+    expect(f.input('Current document: Ideas.md').checked).toBe(true)
+    expect(f.container.querySelectorAll('input[name="qa-add-location"]')).toHaveLength(2)
+  })
+
+  it('shows where an already saved location lives, with nothing to save', async () => {
+    const f = fixture({ chooseFile: async () => '/Fixture/Essay.md' }); f.button('Add Favorite').click()
+    f.input('Current document: Ideas.md').click()
+    f.button('Choose file…').click(); await f.flush()
+    expect(f.container.textContent).toContain('Saved in Writing')
+    expect(f.button('Go to Favorite: Essay.md')).toBeTruthy()
+    expect(f.button('Save').disabled).toBe(true)
+  })
+
+  it('changes nothing when a dialog is cancelled, reports a failed one, and refuses a non-Markdown file', async () => {
+    const replies: Array<string | undefined | Error> = [undefined, new Error('bridge gone'), '/Fixture/Picture.png']
+    const f = fixture({ chooseFile: async () => { const reply = replies.shift(); if (reply instanceof Error) throw reply; return reply } })
+    f.button('Add Favorite').click()
+    f.button('Choose file…').click(); await f.flush()
+    expect(f.container.querySelector('[data-field-error="add-location"]')).toBeNull()
+    expect(f.button('Save').disabled).toBe(true)
+    f.button('Choose file…').click(); await f.flush()
+    expect(f.container.querySelector('[data-field-error="add-location"]')?.textContent).toContain('file chooser could not be opened')
+    f.button('Choose file…').click(); await f.flush()
+    expect(f.container.querySelector('[data-field-error="add-location"]')?.textContent).toContain('Markdown')
+    expect(f.container.querySelector('input[aria-label^="Chosen"]')).toBeNull()
+  })
+
+  it('ignores a dialog that answers after the page closed', async () => {
+    let answer: (path: string) => void = () => {}
+    const f = fixture({ chooseFile: () => new Promise(resolve => { answer = resolve }) }); f.button('Add Favorite').click()
+    f.button('Choose file…').click(); f.button('Cancel').click(); await f.flush()
+    answer('/Fixture/Late.md'); await f.flush()
+    expect(f.container.textContent).not.toContain('Late.md')
+    expect(saved(f, '/Fixture/Late.md')).toBeUndefined()
+  })
+
+  it('works with nothing open, and after both current locations are saved', async () => {
+    const f = fixture(); f.current.file = undefined as unknown as string; f.current.folder = undefined as unknown as string; f.render()
+    f.button('Add Favorite').click()
+    expect(f.container.textContent).toContain('No saved Markdown document')
+    f.setInput('Location path', '/Fixture/Typed'); f.button('Use path').click()
+    expect(f.input('Chosen folder: Typed').checked).toBe(true)
+    f.button('Cancel').click(); f.button('Discard changes').click()
+
+    const full = fixture(); full.current.file = '/Fixture/Essay.md'; full.current.folder = '/Fixture/Atlas'; full.render()
+    full.button('Add Favorite').click()
+    expect(full.container.textContent).toContain('Both current locations are already in Favorites.')
+    full.setInput('Location path', '/Fixture/Typed'); full.button('Use path').click()
+    expect(full.input('Chosen folder: Typed').checked).toBe(true)
+    full.button('Save').click(); await full.flush()
+    expect(saved(full, '/Fixture/Typed')?.kind).toBe('folder')
+  })
+
+  it('leaves the page opened from a Recent star without these controls', async () => {
+    const f = fixture({ chooseFile: async () => undefined }); f.button('Recent').click(); await f.flush(); f.button('Add Favorite: Recent.md').click()
+    expect(f.container.querySelector('input[aria-label="Location path"]')).toBeNull()
+    expect(() => f.button('Choose file…')).toThrow()
+  })
+})
 
 describe('Favorites production panel', () => {
   it('does not inherit Typora global fixed header/footer chrome rules', () => {

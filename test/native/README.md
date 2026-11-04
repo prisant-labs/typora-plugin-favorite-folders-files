@@ -49,6 +49,17 @@ Keep real paths, screenshots and native history in local-only receipts.
 - Add the current eligible Markdown file and working folder. Verify selection
   does not save early; saved cards name their group and Go reveals the shortcut
   without opening the target. Test all-saved, mixed, unsaved-document and no-folder cases.
+- On **Add Favorite**, use **Choose file…** and **Choose folder…**. Each opens
+  Typora's own dialog at the open folder, and the file dialog offers only
+  Markdown files. The pick is listed as **Chosen** and selected, and nothing is
+  saved until **Save**. Cancelling a dialog changes nothing. Typora's open
+  folder and document do not change. On Windows, record whether the pick appears
+  in the Windows Recent list (it should not). On macOS, record whether each
+  dialog opens at all, and whether the file filter applies.
+- On **Add Favorite**, type a Markdown path and a folder path, and paste a path
+  from Windows' **Copy as path**, which adds quotes. Each is listed as the right
+  kind after **Use path**. Type a missing path and save it: it opens as
+  unavailable, and the shortcut survives.
 - Create/rename groups, move Favorites, delete a group, reorder groups with
   arrows and pointer, and arrange a group's Favorites with arrows. Cancel leaves
   saved membership/order untouched; group deletion transfers members to Ungrouped.

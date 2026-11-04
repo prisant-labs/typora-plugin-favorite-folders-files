@@ -49,6 +49,11 @@
   `path.selectFolderOrFile` on macOS (`src/folder-chooser.ts`). Never use
   `controller.selectFolder` to pick a folder; it switches the folder Typora has
   open.
+- **Choose file…** on **Add Favorite** uses Typora's own file dialog in the same
+  way: `dialog.showOpenDialog` with `openFile` and `dontAddToRecent` on Windows,
+  and `path.selectFolderOrFile` with `dir: false` on macOS. A typed path is never
+  checked on disk, because Core's macOS `stat` puts paths into a shell command.
+  Its extension decides whether it is saved as a document or a folder.
 
 ## Development expectations
 
