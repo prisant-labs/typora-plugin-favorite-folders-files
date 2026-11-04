@@ -1,5 +1,5 @@
 import {
-  ALL_GROUPS_ID, UNGROUPED_GROUP_ID, applyFavoritesOperation, locationId,
+  ALL_GROUPS_ID, UNGROUPED_GROUP_ID, applyFavoritesOperation, locationId, normalizePath,
   selectFavoriteGroups, selectFavoritesInGroup,
   type Favorite, type FavoritesOperation, type FavoritesPreferences, type FavoritesState,
   type LocationKind, type Platform,
@@ -8,6 +8,7 @@ import { browsePlaces, browseRows, browseTops, CHOOSER_FAILED, drivesName, folde
 import type { BrowseRootsChange, BrowseSnapshot } from './browse-runtime'
 import { normalizeTops, type BrowseTopKind, type PanelTab } from './browse-store'
 import { createFavoritesDraft, stageFavoritesDraft, type FavoritesDraft } from './editor-state'
+import { isMarkdown } from './host'
 import { historyActivity, selectRecent, type NativeHistorySnapshot, type RecentLocation } from './native-history'
 import { icon, TAB_ICONS } from './panel'
 
@@ -43,18 +44,22 @@ export interface FavoritesPanelActions {
   /** Opens the update confirmation. */
   update?(): void
   browse?: BrowsePanelActions
-  /** Typora's folder chooser, for adding a Browse root. Absent where Typora offers none. */
-  chooseFolder?(defaultPath?: string): Promise<string | undefined>
+  /** Typora's folder chooser, for adding a Browse root or a Favorite. Absent where Typora offers none. */
+  chooseFolder?(defaultPath?: string, title?: string): Promise<string | undefined>
+  /** Typora's file chooser, for adding a Favorite. Absent where Typora offers none. */
+  chooseFile?(defaultPath?: string): Promise<string | undefined>
 }
+const FILE_CHOOSER_FAILED = 'Typora\'s file chooser could not be opened. Type the file\'s full path instead.'
 const RECENT_SOURCE = 'Typora\'s own Recent list (File → Open Recent). Favorites reads it while this panel is open and never saves or changes it.'
 type EditorKind = 'add' | 'move' | 'groups' | 'arrange' | 'roots'
 /** The field or confirmation a message is about. It shows right below that control; Save failures show beside Save. */
-type FieldSlot = 'roots-add' | 'new-group' | 'rename' | 'delete'
+type FieldSlot = 'roots-add' | 'add-location' | 'new-group' | 'rename' | 'delete'
 type Tab = PanelTab
-type Choice = { id: string; kind: LocationKind; path: string }
 /** Where the Add Favorite page's location came from, for its label. */
-type ChoiceSource = 'current' | 'recent' | 'browse'
-const CHOICE_LABELS: Record<ChoiceSource, string> = { current: 'Current', recent: 'Recent', browse: 'Selected' }
+type ChoiceSource = 'current' | 'recent' | 'browse' | 'chosen'
+/** `source` marks a location picked on the page itself; any other takes the page's `source`. */
+type Choice = { id: string; kind: LocationKind; path: string; source?: 'chosen' }
+const CHOICE_LABELS: Record<ChoiceSource, string> = { current: 'Current', recent: 'Recent', browse: 'Selected', chosen: 'Chosen' }
 interface Editor {
   kind: EditorKind
   draft: FavoritesDraft
@@ -62,6 +67,8 @@ interface Editor {
   selected?: Choice
   choices: Choice[]
   source: ChoiceSource
+  /** The Add Favorite page's typed path, not yet used. */
+  locationInput: string
   /** The Manage Browse roots page's unsaved roots. */
   roots?: { paths: string[]; tops: BrowseTopKind[]; home: boolean; drives: boolean; input: string }
   groupId: string
@@ -537,7 +544,7 @@ export class FavoritesPanelRenderer {
       const path = this.snapshot!.current[type]
       if (path) try { choices.push({ id: locationId(type, path, this.snapshot!.platform), kind: type, path }) } catch { /* Not an eligible saved path. */ }
     }
-    this.editor = { kind, origin, draft: createFavoritesDraft(this.state()), choices: choice ? [choice] : choices, source: choice ? source : 'current', selected: choice, groupId, favorite, newName: '', renameText: '', saving: false }
+    this.editor = { kind, origin, draft: createFavoritesDraft(this.state()), choices: choice ? [choice] : choices, source: choice ? source : 'current', selected: choice, locationInput: '', groupId, favorite, newName: '', renameText: '', saving: false }
     if (kind === 'roots' && browse) this.editor.roots = { paths: [...browse.record.roots], tops: [...browse.record.tops], home: browse.record.home, drives: browse.record.drives, input: '' }
     this.popup = undefined; this.focusNext = 'editor-back'; this.render()
     const body = this.container.querySelector('.qa-page-body'); if (body) body.scrollTop = 0
@@ -549,7 +556,7 @@ export class FavoritesPanelRenderer {
       return Boolean(e.roots.input) || e.roots.home !== record.home || e.roots.drives !== record.drives || e.roots.paths.join('\n') !== record.roots.join('\n')
         || normalizeTops(e.roots.tops, e.roots.paths.length).join() !== record.tops.join()
     }
-    return e.draft.operations.length > 0 || Boolean(e.selected) || (e.kind === 'move' && e.groupId !== e.favorite?.groupId) || Boolean(e.newName || e.renameId)
+    return e.draft.operations.length > 0 || Boolean(e.selected) || Boolean(e.locationInput) || (e.kind === 'move' && e.groupId !== e.favorite?.groupId) || Boolean(e.newName || e.renameId)
   }
   private editorWritable() { return this.editor?.kind === 'roots' ? Boolean(this.snapshot!.browse?.writable) : this.snapshot!.writable }
   /** Typing updates Save and the draft label without a re-render, which would drop an IME composition. */
@@ -609,11 +616,12 @@ export class FavoritesPanelRenderer {
   }
   private addPage(body: HTMLElement, e: Editor) {
     const allSaved = e.choices.length > 0 && e.choices.every(choice => this.state().favorites.some(row => row.id === choice.id))
-    body.append(el('p', 'qa-page-note', allSaved ? e.choices.length === 2 ? 'Both current locations are already in Favorites.' : 'This location is already in Favorites.' : 'Select a location, choose its group, then Save.'))
+    const savedNote = e.choices.length === 1 ? 'This location is already in Favorites.' : e.choices.some(choice => choice.source) ? 'These locations are already in Favorites.' : 'Both current locations are already in Favorites.'
+    body.append(el('p', 'qa-page-note', allSaved ? savedNote : 'Select a location, choose its group, then Save.'))
     if (!e.choices.length) body.append(el('p', 'qa-empty', 'No saved Markdown document or working folder is currently available.'))
     for (const choice of e.choices) {
       const saved = this.state().favorites.find(row => row.id === choice.id)
-      const label = `${CHOICE_LABELS[e.source]} ${choice.kind === 'file' ? 'document' : 'folder'}: ${nameOf(choice.path)}`
+      const label = `${CHOICE_LABELS[choice.source ?? e.source]} ${choice.kind === 'file' ? 'document' : 'folder'}: ${nameOf(choice.path)}`
       const card = el(saved ? 'div' : 'label', 'qa-location-choice'); card.append(icon(choice.kind)); const copy = el('span', 'qa-location-copy'); copy.append(el('strong', '', label), el('small', '', choice.path))
       card.append(copy)
       if (saved) {
@@ -625,11 +633,57 @@ export class FavoritesPanelRenderer {
       }
       body.append(card)
     }
+    // A star on a Recent or Browse row has already named its location.
+    if (e.source === 'current') this.locationControls(body, e)
     if (!allSaved && e.choices.length) {
       const label = el('label', 'qa-destination-label', 'Save in group'); const select = el('select'); select.setAttribute('aria-label', 'Save in group'); select.dataset.key = 'add-destination'
       for (const group of selectFavoriteGroups(this.state()).groups) { const option = el('option', '', group.name); option.value = group.id; select.append(option) }
       select.value = e.groupId; select.addEventListener('change', () => { e.groupId = select.value }); label.append(select); body.append(label, el('p', 'qa-page-note', 'Each location can be saved once. Already-saved locations are shown with their group.'))
     } else if (allSaved) body.append(el('p', 'qa-page-note', 'Nothing needs saving. Go to a Favorite to move it or remove its shortcut.'))
+  }
+  /** Ways to name any location on the Add Favorite page: Typora's dialogs or a typed path. */
+  private locationControls(body: HTMLElement, e: Editor) {
+    const { platform } = this.snapshot!
+    body.append(el('h4', 'qa-page-section', 'Choose another location'))
+    const adders = el('div', 'qa-root-adders')
+    for (const [kind, name, action] of [['file', 'Choose file…', this.actions.chooseFile], ['folder', 'Choose folder…', this.actions.chooseFolder]] as const) {
+      if (!action) continue
+      const choose = btn(name, `add-choose-${kind}`, () => { void this.chooseLocation(e, kind) }); choose.className = 'qa-add-root'; adders.append(choose)
+    }
+    if (adders.childElementCount) body.append(adders)
+    const form = el('div', 'qa-new-group'), label = el('label', '', adders.childElementCount ? 'Or type its full path' : 'Type its full path'), input = el('input')
+    input.placeholder = rootExample(platform); input.value = e.locationInput; input.dataset.key = 'add-location-path'; input.setAttribute('aria-label', 'Location path'); input.spellcheck = false
+    const use = () => {
+      // Windows' Copy as path wraps the path in quotes.
+      const path = e.locationInput.trim().replace(/^"(.*)"$/, '$1')
+      if (this.stageLocation(e, isMarkdown(path) ? 'file' : 'folder', path)) { e.locationInput = ''; this.render() }
+    }
+    input.addEventListener('input', () => { e.locationInput = input.value; this.clearField('add-location', input); this.syncDraftState() })
+    input.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); use() } })
+    this.preserveComposition(input); this.markField(input, 'add-location')
+    label.append(input); form.append(label, btn('Use path', 'add-location-use', use)); body.append(form, ...this.fieldMessage('add-location'))
+    body.append(el('p', 'qa-page-note', 'A typed path with a Markdown extension, such as .md, is saved as a document. Any other is saved as a folder.'))
+  }
+  /** Lists a location on the Add Favorite page and selects it. The caller redraws. */
+  private stageLocation(e: Editor, kind: LocationKind, value: string) {
+    const { platform } = this.snapshot!
+    let path: string
+    try { path = normalizePath(value, platform) } catch { this.complain('add-location', `Enter a full path, such as ${rootExample(platform)}.`, 'add-location-path'); return false }
+    if (kind === 'file' && !isMarkdown(path)) { this.complain('add-location', 'Favorites keeps Markdown files only.'); return false }
+    const id = locationId(kind, path, platform), known = e.choices.find(choice => choice.id === id), choice: Choice = known ?? { id, kind, path, source: 'chosen' }
+    if (!known) e.choices = [...e.choices.filter(other => !other.source), choice]
+    const saved = this.state().favorites.some(row => row.id === id)
+    e.selected = saved ? undefined : choice; e.fieldError = undefined; this.focusNext = saved ? `go:${id}` : `choice:${id}`
+    return true
+  }
+  private async chooseLocation(e: Editor, kind: LocationKind) {
+    const defaultPath = this.snapshot!.current.folder ?? this.snapshot!.browse?.home
+    if (e.saving) return
+    let chosen: string | undefined
+    try { chosen = kind === 'file' ? await this.actions.chooseFile?.(defaultPath) : await this.actions.chooseFolder?.(defaultPath, 'Choose a folder for Favorites') }
+    catch { if (!this.disposed && this.editor === e) this.complain('add-location', kind === 'file' ? FILE_CHOOSER_FAILED : CHOOSER_FAILED); return }
+    // A cancelled dialog changes nothing.
+    if (chosen && !this.disposed && this.editor === e && !e.saving && this.stageLocation(e, kind, chosen)) this.render()
   }
   private movePage(body: HTMLElement, e: Editor, state: FavoritesState) {
     const summary = el('div', 'qa-location-choice'); summary.append(icon(e.favorite!.kind), el('span', 'qa-location-copy', e.favorite!.path)); body.append(summary)
@@ -783,6 +837,7 @@ export class FavoritesPanelRenderer {
     if (e.renameId) { this.complain('rename', 'Apply or cancel the new name before saving.', 'rename-input'); return }
     if (e.newName) { this.complain('new-group', 'Finish adding the group, or clear its name, before saving.', 'new-group-name'); return }
     if (e.deleting) { this.complain('delete', 'Confirm or cancel the group deletion before saving.', 'confirm-delete'); return }
+    if (e.locationInput.trim()) { this.complain('add-location', 'Use the path, or clear it, before saving.', 'add-location-path'); return }
     let draft = e.draft
     try {
       if (e.kind === 'add') {

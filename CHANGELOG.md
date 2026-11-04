@@ -3,6 +3,16 @@
 All notable changes to Favorites for Typora are recorded here. Versions follow
 [semantic versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- **Add Favorite** can now save any file or folder, not only the current ones.
+  Use **Choose file…** or **Choose folder…** to pick one with Typora's own
+  dialog, or type a full path and click **Use path**. A typed path with a
+  Markdown extension is saved as a document, and any other is saved as a folder.
+  The dialogs have not been tried in Typora yet.
+
 ## 0.3.0 (2026-10-20)
 
 ### Added

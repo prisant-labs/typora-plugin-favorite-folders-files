@@ -18,6 +18,8 @@ choose, and stays put when Typora opens a file somewhere else.
 **Favorites and groups**
 
 - Save the current document or folder with **+**, or click the star on any row.
+- Save any other Markdown file or folder from the same **+** page: pick it with
+  Typora's own dialog, or type its path.
 - Group Favorites however you like. Folders and files can share a group, and
   anything without a group stays in **Ungrouped**.
 - Create, rename, delete and reorder groups, and arrange the Favorites inside
