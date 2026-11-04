@@ -656,7 +656,7 @@ export class FavoritesPanelRenderer {
     const use = () => {
       // Windows' Copy as path wraps the path in quotes.
       const path = e.locationInput.trim().replace(/^"(.*)"$/, '$1')
-      if (this.stageLocation(e, isMarkdown(path) ? 'file' : 'folder', path)) { e.locationInput = ''; this.render() }
+      if (this.stageLocation(e, undefined, path)) { e.locationInput = ''; this.render() }
     }
     input.addEventListener('input', () => { e.locationInput = input.value; this.clearField('add-location', input); this.syncDraftState() })
     input.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); use() } })
@@ -664,11 +664,12 @@ export class FavoritesPanelRenderer {
     label.append(input); form.append(label, btn('Use path', 'add-location-use', use)); body.append(form, ...this.fieldMessage('add-location'))
     body.append(el('p', 'qa-page-note', 'A typed path with a Markdown extension, such as .md, is saved as a document. Any other is saved as a folder.'))
   }
-  /** Lists a location on the Add Favorite page and selects it. The caller redraws. */
-  private stageLocation(e: Editor, kind: LocationKind, value: string) {
+  /** Lists a location on the Add Favorite page and selects it. A typed path has no kind: its extension decides. The caller redraws. */
+  private stageLocation(e: Editor, picked: LocationKind | undefined, value: string) {
     const { platform } = this.snapshot!
     let path: string
     try { path = normalizePath(value, platform) } catch { this.complain('add-location', `Enter a full path, such as ${rootExample(platform)}.`, 'add-location-path'); return false }
+    const kind = picked ?? (isMarkdown(path) ? 'file' : 'folder')
     if (kind === 'file' && !isMarkdown(path)) { this.complain('add-location', 'Favorites keeps Markdown files only.'); return false }
     const id = locationId(kind, path, platform), known = e.choices.find(choice => choice.id === id), choice: Choice = known ?? { id, kind, path, source: 'chosen' }
     if (!known) e.choices = [...e.choices.filter(other => !other.source), choice]

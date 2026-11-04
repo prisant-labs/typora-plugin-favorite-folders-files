@@ -54,6 +54,11 @@ describe('Add Favorite by a chosen or typed location', () => {
     f.button('Save').click(); await f.flush()
     expect(saved(f, '/Fixture/Typed/Folder.v2')?.kind).toBe('folder')
   })
+  it('judges a typed path by its extension after normalizing it', () => {
+    const f = fixture(); f.button('Add Favorite').click()
+    f.setInput('Location path', '/Fixture/Typed/Trailing.md/'); f.button('Use path').click()
+    expect(f.input('Chosen document: Trailing.md').checked).toBe(true)
+  })
 
   it('accepts the quotes that Copy as path adds, and Enter in the field', () => {
     const f = fixture(); f.button('Add Favorite').click()
