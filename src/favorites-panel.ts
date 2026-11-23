@@ -7,7 +7,7 @@ import {
 import { browsePlaces, browseRows, browseTops, CHOOSER_FAILED, drivesName, folderName, placeId, rootExample, rootId, splitPlaces, withRoot, type BrowsePlace, type BrowseRow } from './browse-model'
 import type { BrowseRootsChange, BrowseSnapshot } from './browse-runtime'
 import { normalizeTops, type BrowseTopKind, type PanelTab } from './browse-store'
-import { createFavoritesDraft, stageFavoritesDraft, type FavoritesDraft } from './editor-state'
+import { createFavoritesDraft, projectFavoritesDraft, stageFavoritesDraft, type FavoritesDraft } from './editor-state'
 import { isMarkdown } from './host'
 import { historyActivity, selectRecent, type NativeHistorySnapshot, type RecentLocation } from './native-history'
 import { icon, TAB_ICONS } from './panel'
@@ -74,6 +74,8 @@ interface Editor {
   groupId: string
   favorite?: Favorite
   newName: string
+  /** Add Favorite's New group field is open. */
+  creatingGroup?: boolean
   renameId?: string
   renameText: string
   deleting?: string
@@ -82,6 +84,15 @@ interface Editor {
   fieldError?: { at: FieldSlot; message: string }
   pending?: () => void
   saving: boolean
+}
+/**
+ * A new group's ID. `crypto.randomUUID` needs a secure context and Safari 15.4, so older macOS WebKit and the
+ * preview page lack it; `getRandomValues` works in both.
+ */
+function newGroupId() {
+  const crypto = globalThis.crypto
+  if (typeof crypto.randomUUID === 'function') return `group-${crypto.randomUUID()}`
+  return `group-${Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('')}`
 }
 const nameOf = (path: string) => path.slice(path.lastIndexOf('/') + 1) || path
 const parentOf = (path: string) => path.slice(0, path.lastIndexOf('/')) || '/'
@@ -112,9 +123,17 @@ export class FavoritesPanelRenderer {
   private disposed = false
   private mainScroll = 0
   private focusNext?: string
-  /** A grip being dragged on Manage groups or Manage Browse roots; `id` is a group ID, a root's location ID, `home` or `drives`. */
-  private drag?: { list: 'groups' | 'roots'; id: string; target?: string; after: boolean; pointer: number; x: number; y: number; valid: boolean }
+  /**
+   * A grip being dragged on Manage groups or Manage Browse roots, or a Favorite row in the Outline list.
+   * `id` is a group ID, a root's location ID, `home`, `drives`, or a Favorite's ID. A Favorite's drag is
+   * `pending` until the pointer travels far enough, so a plain click still opens it; its drop lands in `group`,
+   * beside the row `target` when items sort Custom. Escape marks it `cancelled` until the button is released,
+   * so that release cannot open the Favorite.
+   */
+  private drag?: { list: 'groups' | 'roots' | 'favorites'; id: string; target?: string; group?: string; after: boolean; pointer: number; x: number; y: number; valid: boolean; pending?: { x: number; y: number }; cancelled?: boolean }
   private dragFrame?: number
+  /** The click that ends a Favorite's drag must not also open it. */
+  private swallowClick = false
   private readonly keyHandler = (event: KeyboardEvent) => {
     if (this.popup && ['favorite', 'group', 'browse'].includes(this.popup.kind) && document.activeElement?.closest('.qa-menu') && this.container.contains(document.activeElement) && ['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
       const items = [...this.container.querySelectorAll<HTMLButtonElement>('.qa-menu button:not(:disabled)')]
@@ -125,6 +144,7 @@ export class FavoritesPanelRenderer {
     }
     if (event.key !== 'Escape' || (!this.container.contains(document.activeElement) && !this.drag)) return
     event.preventDefault()
+    if (this.drag?.list === 'favorites' && !this.drag.pending) { this.drag.cancelled = true; this.clearDragMarks(); return }
     if (this.drag) { this.cancelDrag(); return }
     if (this.popup) { this.focusNext = this.popup.trigger; this.popup = undefined; this.render(); return }
     if (this.editor) this.leaveEditor(() => this.closeEditor())
@@ -224,6 +244,8 @@ export class FavoritesPanelRenderer {
     this.container.replaceChildren(header, ...contents, status)
     const list = this.container.querySelector('.qa-lists, .qa-page-body')
     if (list) list.scrollTop = scroll
+    // A redraw during a Favorite's drag builds new rows: mark the dragged one and its drop again.
+    if (this.drag?.list === 'favorites' && !this.drag.pending && !this.drag.cancelled) { this.markFavoriteDrag(); this.locateDrag() }
     if (focusKey) {
       const target = this.focus(focusKey, restoring) || this.focus(this.editor ? 'editor-back' : 'search')
       if (target instanceof HTMLInputElement && selection && ['text', 'search'].includes(target.type)) target.setSelectionRange(selection[0], selection[1])
@@ -332,7 +354,7 @@ export class FavoritesPanelRenderer {
         for (const favorite of selectFavoritesInGroup(state, group.id, historyActivity(this.snapshot!.history)).favorites) lists.append(this.row(favorite))
       }
     } else for (const group of groups) {
-      const wrapper = el('section', 'qa-favorite-group'); const heading = el('div', 'qa-group-heading')
+      const wrapper = el('section', 'qa-favorite-group'); const heading = el('div', 'qa-group-heading'); wrapper.dataset.groupId = group.id
       const collapsed = p.collapsedGroups.includes(group.id)
       const toggle = btn(group.name, `group:${group.id}`, () => this.change({ collapsedGroups: collapsed ? p.collapsedGroups.filter(id => id !== group.id) : [...p.collapsedGroups, group.id] }))
       toggle.className = 'qa-group-toggle'; toggle.setAttribute('aria-expanded', String(!collapsed)); toggle.replaceChildren(icon('chevron'), el('span', 'qa-group-name', group.name), el('span', 'qa-count', String(state.itemOrder[group.id].length)))
@@ -489,8 +511,18 @@ export class FavoritesPanelRenderer {
     try { isCurrent = Boolean(current && locationId(location.kind, current, this.snapshot!.platform) === location.id) } catch { /* Unsaved location. */ }
     row.classList.toggle('qa-current', isCurrent)
     const newWindow = this.snapshot!.platform === 'win32'
-    const open = btn(`Open ${name}`, `open:${rowKey}`, event => { void this.run(() => this.actions.open(location.kind, location.path, { newWindow: newWindow && (event.ctrlKey || event.metaKey) })) })
+    const open = btn(`Open ${name}`, `open:${rowKey}`, event => {
+      if (this.swallowClick) { this.swallowClick = false; return }
+      void this.run(() => this.actions.open(location.kind, location.path, { newWindow: newWindow && (event.ctrlKey || event.metaKey) }))
+    })
     open.className = 'qa-open'; if (isCurrent) open.setAttribute('aria-current', 'location')
+    // Only the Outline list shows which group a row is in, so only there can a row be dragged to another group.
+    if (saved && collection === 'favorites' && this.state().preferences.groupView === 'outline' && this.snapshot!.writable) {
+      open.addEventListener('pointerdown', event => {
+        if (event.button !== 0 || this.drag) return
+        this.drag = { list: 'favorites', id: saved.id, after: false, pointer: event.pointerId, x: event.clientX, y: event.clientY, valid: false, pending: { x: event.clientX, y: event.clientY } }
+      })
+    }
     const here = isCurrent && location.kind === 'folder' ? 'Already open in this window' : 'Click to open in this window'
     open.title = newWindow ? `${location.path}\n${here} · Ctrl+click for a new window` : location.path
     const labels = el('span', 'qa-row-label'), title = el('span', 'qa-name', name)
@@ -636,10 +668,37 @@ export class FavoritesPanelRenderer {
     // A star on a Recent or Browse row has already named its location.
     if (e.source === 'current') this.locationControls(body, e)
     if (!allSaved && e.choices.length) {
+      // The draft's groups, so a group made on this page is listed and selected.
       const label = el('label', 'qa-destination-label', 'Save in group'); const select = el('select'); select.setAttribute('aria-label', 'Save in group'); select.dataset.key = 'add-destination'
-      for (const group of selectFavoriteGroups(this.state()).groups) { const option = el('option', '', group.name); option.value = group.id; select.append(option) }
-      select.value = e.groupId; select.addEventListener('change', () => { e.groupId = select.value }); label.append(select); body.append(label, el('p', 'qa-page-note', 'Each location can be saved once. Already-saved locations are shown with their group.'))
+      for (const group of selectFavoriteGroups(this.projected()).groups) { const option = el('option', '', group.name); option.value = group.id; select.append(option) }
+      select.value = e.groupId; select.addEventListener('change', () => { e.groupId = select.value }); label.append(select); body.append(label)
+      this.newGroupControls(body, e)
+      body.append(el('p', 'qa-page-note', 'Each location can be saved once. Already-saved locations are shown with their group.'))
     } else if (allSaved) body.append(el('p', 'qa-page-note', 'Nothing needs saving. Go to a Favorite to move it or remove its shortcut.'))
+  }
+  /** Add Favorite's way to make a group without leaving the page. The group joins the draft, and Save creates it with the Favorite. */
+  private newGroupControls(body: HTMLElement, e: Editor) {
+    if (!e.creatingGroup) {
+      const open = btn('New group…', 'add-new-group', () => { e.creatingGroup = true; e.newName = ''; this.focusNext = 'new-group-name'; this.render() })
+      open.className = 'qa-add-root qa-add-new-group'; body.append(open); return
+    }
+    const form = el('div', 'qa-new-group'), label = el('label', '', 'New group name'), input = el('input')
+    input.placeholder = 'Group name'; input.value = e.newName; input.maxLength = 60; input.dataset.key = 'new-group-name'; input.setAttribute('aria-label', 'New group name')
+    const create = () => {
+      const name = e.newName.trim(), taken = name.toLocaleLowerCase() === 'ungrouped' ? 'Ungrouped' : this.projected().groups.find(group => group.name.toLocaleLowerCase() === name.toLocaleLowerCase())?.name
+      if (!name) { this.complain('new-group', 'Type a name for the new group.', 'new-group-name'); return }
+      if (taken) { this.complain('new-group', `A group named ${taken} already exists. Choose it from the list.`, 'new-group-name'); return }
+      try {
+        const id = newGroupId()
+        e.draft = stageFavoritesDraft(e.draft, { type: 'group:create', id, name }, this.snapshot!.platform)
+        e.groupId = id; e.newName = ''; e.creatingGroup = false; e.fieldError = undefined; e.error = undefined; this.focusNext = 'add-destination'; this.render()
+      } catch (error) { this.complain('new-group', (error as Error).message, 'new-group-name') }
+    }
+    input.addEventListener('input', () => { e.newName = input.value; this.clearField('new-group', input); this.syncDraftState() })
+    input.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); create() } })
+    this.preserveComposition(input); this.markField(input, 'new-group')
+    const cancel = btn('Cancel new group', 'cancel-new-group', () => { e.creatingGroup = false; e.newName = ''; this.clearField('new-group'); this.focusNext = 'add-new-group'; this.render() })
+    label.append(input); form.append(label, btn('Create group', 'create-group', create), cancel); body.append(form, ...this.fieldMessage('new-group'))
   }
   /** Ways to name any location on the Add Favorite page: Typora's dialogs or a typed path. */
   private locationControls(body: HTMLElement, e: Editor) {
@@ -748,7 +807,7 @@ export class FavoritesPanelRenderer {
     input.addEventListener('input', () => { e.newName = input.value; this.clearField('new-group', input); this.syncDraftState() })
     this.preserveComposition(input); this.markField(input, 'new-group')
     label.append(input); form.append(label, btn('Add group', 'add-group', () => {
-      try { const id = `group-${globalThis.crypto.randomUUID()}`; e.draft = stageFavoritesDraft(e.draft, { type: 'group:create', id, name: e.newName }, this.snapshot!.platform); e.newName = ''; e.fieldError = undefined; this.render() } catch (error) { this.complain('new-group', (error as Error).message, 'new-group-name') }
+      try { const id = newGroupId(); e.draft = stageFavoritesDraft(e.draft, { type: 'group:create', id, name: e.newName }, this.snapshot!.platform); e.newName = ''; e.fieldError = undefined; this.render() } catch (error) { this.complain('new-group', (error as Error).message, 'new-group-name') }
     })); body.append(form, ...this.fieldMessage('new-group'), el('p', 'qa-page-note', 'New groups, names and order are only applied when you Save.'))
   }
   private arrangePage(body: HTMLElement, e: Editor, state: FavoritesState) {
@@ -843,6 +902,8 @@ export class FavoritesPanelRenderer {
     try {
       if (e.kind === 'add') {
         if (!e.selected) { e.error = 'Select a location before saving.'; this.render(); return }
+        // Only Add Favorite's New group stages groups here: keep the one the Favorite goes into, not a typo left behind.
+        draft = { ...draft, operations: draft.operations.filter(operation => operation.type !== 'group:create' || operation.id === e.groupId) }
         draft = stageFavoritesDraft(draft, { type: 'favorite:add', kind: e.selected.kind, path: e.selected.path, groupId: e.groupId }, this.snapshot!.platform)
       } else if (e.kind === 'move') draft = stageFavoritesDraft(draft, { type: 'favorite:move', favoriteId: e.favorite!.id, groupId: e.groupId }, this.snapshot!.platform)
       e.saving = true; e.error = undefined; this.render()
@@ -856,15 +917,30 @@ export class FavoritesPanelRenderer {
     input.addEventListener('compositionend', () => { this.composing = false; this.render() })
   }
   private moveDrag(event: PointerEvent) {
-    const drag = this.drag; if (!drag || event.pointerId !== drag.pointer) return
+    const drag = this.drag; if (!drag || event.pointerId !== drag.pointer || drag.cancelled) return
+    if (drag.pending) {
+      // Below this distance a press is still a click.
+      if (Math.hypot(event.clientX - drag.pending.x, event.clientY - drag.pending.y) < 5) return
+      drag.pending = undefined
+      if (this.popup) { this.popup = undefined; this.render() }
+      this.markFavoriteDrag()
+    }
     drag.x = event.clientX; drag.y = event.clientY; this.locateDrag()
     if (!this.dragFrame && typeof requestAnimationFrame === 'function') this.dragFrame = requestAnimationFrame(() => this.scrollDrag())
   }
+  /** The list a drag scrolls and must stay inside: the Favorites list, or the editing page. */
+  private dragArea() { return this.container.querySelector<HTMLElement>(this.drag?.list === 'favorites' ? '.qa-lists' : '.qa-page-body') }
+  private markFavoriteDrag() {
+    this.container.classList.add('qa-drag-active')
+    this.container.querySelectorAll<HTMLElement>('.qa-favorite-group .qa-row[data-location]').forEach(row => { if (row.dataset.location === this.drag?.id) row.classList.add('qa-dragging') })
+  }
   private locateDrag() {
-    const drag = this.drag; if (!drag) return
-    const body = this.container.querySelector<HTMLElement>('.qa-page-body')!, bounds = body.getBoundingClientRect()
-    drag.valid = drag.x >= bounds.left && drag.x <= bounds.right && drag.y >= bounds.top && drag.y <= bounds.bottom
-    drag.target = undefined; this.container.querySelectorAll('.qa-drop-before, .qa-drop-after').forEach(node => node.classList.remove('qa-drop-before', 'qa-drop-after'))
+    const drag = this.drag; if (!drag || drag.pending) return
+    const body = this.dragArea(), bounds = body?.getBoundingClientRect()
+    drag.valid = Boolean(bounds) && drag.x >= bounds!.left && drag.x <= bounds!.right && drag.y >= bounds!.top && drag.y <= bounds!.bottom
+    drag.target = undefined; drag.group = undefined
+    this.container.querySelectorAll('.qa-drop-before, .qa-drop-after, .qa-drop-into').forEach(node => node.classList.remove('qa-drop-before', 'qa-drop-after', 'qa-drop-into'))
+    if (drag.list === 'favorites') { if (drag.valid) this.locateFavoriteDrop(drag); return }
     const rows = drag.list === 'groups' ? '.qa-edit-group' : '.qa-root-item'
     if (drag.valid) for (const row of this.container.querySelectorAll<HTMLElement>(rows)) {
       const id = drag.list === 'groups' ? row.dataset.groupId : row.dataset.rootId
@@ -873,9 +949,52 @@ export class FavoritesPanelRenderer {
       if (drag.y >= rect.top && drag.y <= rect.bottom) { drag.target = id; drag.after = drag.y > (rect.top + rect.bottom) / 2; row.classList.add(drag.after ? 'qa-drop-after' : 'qa-drop-before'); break }
     }
   }
+  /**
+   * Finds the Outline group under the pointer. With items sorted Custom, a row there marks a place before or
+   * after it; otherwise, or on the group's heading, the Favorite goes into the group. Its own group is no target
+   * unless items sort Custom.
+   */
+  private locateFavoriteDrop(drag: NonNullable<FavoritesPanelRenderer['drag']>) {
+    const state = this.state(), moving = state.favorites.find(favorite => favorite.id === drag.id); if (!moving) return
+    const custom = state.preferences.itemSort === 'custom'
+    const within = (node: Element) => { const rect = node.getBoundingClientRect(); return drag.y >= rect.top && drag.y <= rect.bottom ? rect : undefined }
+    for (const section of this.container.querySelectorAll<HTMLElement>('.qa-favorite-group[data-group-id]')) {
+      if (!within(section)) continue
+      const group = section.dataset.groupId!
+      if (custom) for (const row of section.querySelectorAll<HTMLElement>('.qa-row[data-location]')) {
+        const rect = within(row); if (!rect) continue
+        if (row.dataset.location === drag.id) return
+        drag.group = group; drag.target = row.dataset.location; drag.after = drag.y > (rect.top + rect.bottom) / 2
+        row.classList.add(drag.after ? 'qa-drop-after' : 'qa-drop-before'); return
+      }
+      if (group !== moving.groupId) { drag.group = group; section.classList.add('qa-drop-into') }
+      return
+    }
+  }
+  /** Saves a dropped Favorite's new group, and its place there when items sort Custom, in one change. */
+  private dropFavorite(id: string, groupId: string, target: string | undefined, after: boolean) {
+    const state = this.state(), platform = this.snapshot!.platform, favorite = state.favorites.find(row => row.id === id)
+    if (!favorite || !this.snapshot!.writable) return
+    let draft = createFavoritesDraft(state)
+    try {
+      if (favorite.groupId !== groupId) draft = stageFavoritesDraft(draft, { type: 'favorite:move', favoriteId: id, groupId }, platform)
+      if (target) {
+        const order = projectFavoritesDraft(draft, platform).itemOrder[groupId].filter(other => other !== id), index = order.indexOf(target)
+        if (index >= 0) { order.splice(index + (after ? 1 : 0), 0, id); draft = stageFavoritesDraft(draft, { type: 'favorite:reorder', groupId, favoriteIds: order }, platform) }
+      }
+    } catch (error) { this.actionError = error instanceof Error ? error.message : 'The Favorite could not be moved.'; this.render(); return }
+    if (!draft.operations.length) return
+    const moved = favorite.groupId !== groupId, name = nameOf(favorite.path)
+    const groupName = groupId === UNGROUPED_GROUP_ID ? 'Ungrouped' : state.groups.find(group => group.id === groupId)?.name
+    void this.run(async () => {
+      const saved = await this.actions.commit(draft)
+      if (!this.disposed && saved) this.snapshot = { ...this.snapshot!, state: saved }
+      this.undo = undefined; this.status = moved ? `Moved ${name} to ${groupName}.` : ''
+    })
+  }
   private scrollDrag() {
     this.dragFrame = undefined
-    const drag = this.drag, body = this.container.querySelector<HTMLElement>('.qa-page-body'); if (!drag?.valid || !body) return
+    const drag = this.drag, body = this.dragArea(); if (!drag?.valid || !body) return
     const rect = body.getBoundingClientRect(); const delta = drag.y < rect.top + 35 ? -8 : drag.y > rect.bottom - 35 ? 8 : 0
     if (delta) {
       const previous = body.scrollTop; body.scrollTop += delta; this.locateDrag()
@@ -884,7 +1003,15 @@ export class FavoritesPanelRenderer {
   }
   private endDrag(event: PointerEvent) {
     const drag = this.drag; if (!drag || event.pointerId !== drag.pointer) return
+    // A press that never travelled is a click, and opens the Favorite as usual.
+    if (drag.pending) { this.drag = undefined; return }
     this.moveDrag(event)
+    if (drag.list === 'favorites') {
+      const { id, group, target, after, cancelled } = drag, valid = drag.valid && !cancelled
+      this.cancelDrag(); this.swallowClick = true; setTimeout(() => { this.swallowClick = false }, 0)
+      if (valid && group) this.dropFavorite(id, group, target, after)
+      return
+    }
     const valid = drag.valid && drag.target && drag.target !== drag.id; const target = drag.target, after = drag.after, id = drag.id
     this.cancelDrag()
     if (!valid || !this.editor) return
@@ -899,10 +1026,11 @@ export class FavoritesPanelRenderer {
     if (drag.list === 'roots' && roots) { this.arrangeRoots(roots, insert(browsePlaces(roots.paths, roots.tops), place => placeId(place, this.snapshot!.platform))); this.render() }
     else if (drag.list === 'groups') this.stage({ type: 'group:reorder', groupIds: insert(this.projected().groupOrder, group => group) })
   }
-  private cancelDrag() {
-    this.drag = undefined
+  private cancelDrag() { this.drag = undefined; this.clearDragMarks() }
+  private clearDragMarks() {
     if (this.dragFrame !== undefined) cancelAnimationFrame(this.dragFrame)
     this.dragFrame = undefined
-    this.container.querySelectorAll('.qa-dragging, .qa-drop-before, .qa-drop-after').forEach(node => node.classList.remove('qa-dragging', 'qa-drop-before', 'qa-drop-after'))
+    this.container.classList.remove('qa-drag-active')
+    this.container.querySelectorAll('.qa-dragging, .qa-drop-before, .qa-drop-after, .qa-drop-into').forEach(node => node.classList.remove('qa-dragging', 'qa-drop-before', 'qa-drop-after', 'qa-drop-into'))
   }
 }

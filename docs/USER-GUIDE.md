@@ -71,6 +71,18 @@ renames or deletes anything on disk.
   saved as a folder. Favorites doesn't check that a typed path exists. If it
   doesn't, the row is marked when you try to open it. These ways of adding have
   not yet been tested in Typora.
+- **Make a group while adding:** on **Add Favorite**, click **New group…** below
+  **Save in group**, type a name, and click **Create group** or press Enter. The
+  new group is selected, and **Save** creates it with the Favorite. A group you
+  make there but don't choose is not created, and cancelling the page discards
+  everything. This has not yet been tested in Typora.
+- **Drag a Favorite to another group:** in the Outline view, drag a Favorite's
+  row onto another group or its heading. The group it would land in is
+  outlined, and the move is saved when you let go. When **Items** sort
+  **Custom**, a line shows where it will go, and you can also drag it to a new
+  place in its own group. Press Escape to cancel a drag. Dragging is not
+  available in the Filter view or in search results. This has not yet been
+  tested in Typora.
 - **Move or remove a Favorite:** use the row's **⋯** menu. Removing only removes
   the shortcut, and an **Undo** button appears.
 - **Manage groups:** click the grid button to create, rename, delete and reorder

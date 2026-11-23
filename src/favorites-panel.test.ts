@@ -625,3 +625,191 @@ describe('update pill', () => {
     expect(css).toMatch(/\.qa-update-pill \{[^}]*flex: none/)
   })
 })
+
+describe('New group on Add Favorite', () => {
+  const destination = (f: ReturnType<typeof fixture>) => f.container.querySelector<HTMLSelectElement>('[data-key="add-destination"]')!
+  const error = (f: ReturnType<typeof fixture>) => f.container.querySelector<HTMLElement>('[data-field-error="new-group"]')
+
+  it('creates a group in line, selects it, and saves both with one Save', async () => {
+    const f = fixture(); f.button('Add Favorite').click(); f.input('Current document: Ideas.md').click()
+    f.button('New group…').click()
+    expect(document.activeElement).toBe(f.input('New group name'))
+    f.setInput('New group name', '  Reading  '); f.button('Create group').click()
+    expect(destination(f).selectedOptions[0].textContent).toBe('Reading')
+    expect(f.input('New group name')).toBeNull()
+    expect(f.state.groups.map(group => group.name)).toEqual(['Projects', 'Writing'])
+    f.button('Save').click(); await f.flush()
+    expect(f.actions.commit).toHaveBeenCalledTimes(1)
+    const reading = f.state.groups.find(group => group.name === 'Reading')!
+    expect(f.state.favorites.find(row => row.path === '/Fixture/Ideas.md')?.groupId).toBe(reading.id)
+  })
+  it('creates on Enter, and Cancel hides the field and forgets its name', () => {
+    const f = fixture(); f.button('Add Favorite').click(); f.input('Current document: Ideas.md').click()
+    f.button('New group…').click(); f.setInput('New group name', 'Half typed'); f.button('Cancel new group').click()
+    expect(f.input('New group name')).toBeNull()
+    f.button('New group…').click(); expect(f.input('New group name').value).toBe('')
+    f.setInput('New group name', 'Reading')
+    f.input('New group name').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    expect(destination(f).selectedOptions[0].textContent).toBe('Reading')
+  })
+  it('explains an empty or taken name below the field, and an unfinished name blocks Save there', () => {
+    const f = fixture(); f.button('Add Favorite').click(); f.input('Current document: Ideas.md').click()
+    f.button('New group…').click(); f.button('Create group').click()
+    expect(error(f)?.textContent).toBe('Type a name for the new group.')
+    expect(error(f)?.previousElementSibling?.contains(f.input('New group name'))).toBe(true)
+    f.setInput('New group name', 'projects'); expect(error(f)).toBeNull()
+    f.button('Create group').click()
+    expect(error(f)?.textContent).toBe('A group named Projects already exists. Choose it from the list.')
+    f.setInput('New group name', 'Reading'); f.button('Save').click()
+    expect(error(f)?.textContent).toBe('Finish adding the group, or clear its name, before saving.')
+    expect(f.actions.commit).not.toHaveBeenCalled()
+  })
+  it('creates only the group the Favorite is saved in', async () => {
+    const f = fixture(); f.button('Add Favorite').click(); f.input('Current document: Ideas.md').click()
+    f.button('New group…').click(); f.setInput('New group name', 'Readnig'); f.button('Create group').click()
+    f.button('New group…').click(); f.setInput('New group name', 'Reading'); f.button('Create group').click()
+    f.button('Save').click(); await f.flush()
+    expect(f.state.groups.map(group => group.name)).toEqual(['Projects', 'Writing', 'Reading'])
+    f.button('Add Favorite').click(); f.input('Current folder: Research').click()
+    f.button('New group…').click(); f.setInput('New group name', 'Unused'); f.button('Create group').click()
+    const select = f.container.querySelector<HTMLSelectElement>('[data-key="add-destination"]')!
+    select.value = 'writing'; select.dispatchEvent(new Event('change', { bubbles: true }))
+    f.button('Save').click(); await f.flush()
+    expect(f.state.groups.map(group => group.name)).toEqual(['Projects', 'Writing', 'Reading'])
+    expect(f.state.favorites.find(row => row.path === '/Fixture/Research')?.groupId).toBe('writing')
+  })
+  it('discards a created group with the rest of the page', () => {
+    const f = fixture(); f.button('Add Favorite').click()
+    f.button('New group…').click(); f.setInput('New group name', 'Reading'); f.button('Create group').click()
+    f.button('Cancel').click(); f.button('Discard changes').click()
+    expect(f.container.querySelector('.qa-editor')).toBeNull()
+    expect(f.state.groups.map(group => group.name)).toEqual(['Projects', 'Writing'])
+  })
+  it('makes groups where crypto.randomUUID is missing, as on older macOS WebKit and in the preview page', async () => {
+    // An own property hides the prototype's method; removing it restores the method.
+    Object.defineProperty(globalThis.crypto, 'randomUUID', { value: undefined, configurable: true })
+    cleanups.push(() => { delete (globalThis.crypto as { randomUUID?: unknown }).randomUUID })
+    const f = fixture(); f.button('Add Favorite').click(); f.input('Current document: Ideas.md').click()
+    f.button('New group…').click(); f.setInput('New group name', 'Reading'); f.button('Create group').click()
+    expect(destination(f).selectedOptions[0].textContent).toBe('Reading')
+    f.button('Save').click(); await f.flush()
+    f.button('Manage groups').click(); f.setInput('New group name', 'Archive'); f.button('Add group').click()
+    f.button('Save').click(); await f.flush()
+    const ids = f.state.groups.map(group => group.id)
+    expect(f.state.groups.map(group => group.name)).toEqual(['Projects', 'Writing', 'Reading', 'Archive'])
+    expect(ids[2]).toMatch(/^group-[0-9a-f]{32}$/); expect(ids[3]).not.toBe(ids[2])
+  })
+  it('is offered on the page a Recent star opens', async () => {
+    const f = fixture(); f.button('Recent').click(); await f.flush(); f.button('Add Favorite: Recent.md').click()
+    f.button('New group…').click(); f.setInput('New group name', 'Inbox'); f.button('Create group').click()
+    f.button('Save').click(); await f.flush()
+    const inbox = f.state.groups.find(group => group.name === 'Inbox')!
+    expect(f.state.favorites.find(row => row.path === '/Fixture/Recent.md')?.groupId).toBe(inbox.id)
+  })
+})
+
+describe('Dragging Favorites between groups', () => {
+  const pointer = (type: string, y: number, x = 40) => new MouseEvent(type, { bubbles: true, clientX: x, clientY: y })
+  const id = (f: ReturnType<typeof fixture>, path: string) => f.state.favorites.find(row => row.path === path)!.id
+  const openButton = (f: ReturnType<typeof fixture>, name: string) => f.button(`Open ${name}`)
+  /** Lays out the Outline list: each group heading and Favorite row is 30 pixels tall, one under another. */
+  function place(f: ReturnType<typeof fixture>) {
+    vi.spyOn(f.container.querySelector<HTMLElement>('.qa-lists')!, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 280, top: 0, bottom: 400 } as DOMRect)
+    let y = 0
+    for (const section of f.container.querySelectorAll<HTMLElement>('.qa-favorite-group')) {
+      const top = y
+      for (const part of section.querySelectorAll<HTMLElement>('.qa-group-heading, .qa-row')) { const at = y; vi.spyOn(part, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 280, top: at, bottom: at + 30 } as DOMRect); y += 30 }
+      const bottom = y; vi.spyOn(section, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 280, top, bottom } as DOMRect)
+    }
+  }
+  // Outline, A-Z: Projects 0-30, Atlas 30-60, Brief.md 60-90; Writing 90-120, Essay.md 120-150; Ungrouped 150-180.
+  function drag(f: ReturnType<typeof fixture>, name: string, from: number, to: number) {
+    place(f); const source = openButton(f, name)
+    source.dispatchEvent(pointer('pointerdown', from)); document.dispatchEvent(pointer('pointermove', to)); document.dispatchEvent(pointer('pointerup', to))
+    return source
+  }
+
+  it('moves a Favorite into the group it is dropped on, and swallows the click that ends the drag', async () => {
+    const f = fixture(); place(f)
+    const source = openButton(f, 'Brief.md')
+    source.dispatchEvent(pointer('pointerdown', 75)); document.dispatchEvent(pointer('pointermove', 135))
+    expect(source.closest('.qa-row')?.classList.contains('qa-dragging')).toBe(true)
+    expect(f.container.querySelector<HTMLElement>('.qa-drop-into')?.dataset.groupId).toBe('writing')
+    document.dispatchEvent(pointer('pointerup', 135)); source.click(); await f.flush()
+    expect(f.actions.open).not.toHaveBeenCalled()
+    expect(f.state.favorites.find(row => row.path === '/Fixture/Atlas/Brief.md')?.groupId).toBe('writing')
+    expect(f.container.querySelector('.qa-status')?.textContent).toBe('Moved Brief.md to Writing.')
+    expect(f.container.querySelector('.qa-dragging, .qa-drop-into')).toBeNull()
+  })
+  it('drops on a group heading, including empty Ungrouped', async () => {
+    const f = fixture(); drag(f, 'Essay.md', 135, 165); await f.flush()
+    expect(f.state.favorites.find(row => row.path === '/Fixture/Essay.md')?.groupId).toBe(UNGROUPED_GROUP_ID)
+  })
+  it('still opens on a click, and on a press that barely moves', async () => {
+    const f = fixture(); place(f)
+    const source = openButton(f, 'Brief.md')
+    source.dispatchEvent(pointer('pointerdown', 75)); document.dispatchEvent(pointer('pointermove', 77, 42)); document.dispatchEvent(pointer('pointerup', 77, 42)); source.click()
+    expect(f.actions.open).toHaveBeenCalledWith('file', '/Fixture/Atlas/Brief.md', { newWindow: false })
+    expect(f.actions.commit).not.toHaveBeenCalled()
+  })
+  it('changes nothing when dropped back in its own group while items sort A-Z, outside the list, or after Escape', async () => {
+    const f = fixture()
+    drag(f, 'Brief.md', 75, 45); await f.flush()
+    drag(f, 'Brief.md', 75, -40); await f.flush()
+    place(f); openButton(f, 'Brief.md').dispatchEvent(pointer('pointerdown', 75)); document.dispatchEvent(pointer('pointermove', 135))
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(f.container.querySelector('.qa-dragging, .qa-drop-into')).toBeNull()
+    document.dispatchEvent(pointer('pointerup', 135)); await f.flush()
+    expect(f.actions.commit).not.toHaveBeenCalled()
+    expect(f.state.favorites.find(row => row.path === '/Fixture/Atlas/Brief.md')?.groupId).toBe('work')
+  })
+  it('does not open the Favorite when a drag cancelled with Escape is released on its own row', async () => {
+    const f = fixture(); place(f); const source = openButton(f, 'Brief.md')
+    source.dispatchEvent(pointer('pointerdown', 75)); document.dispatchEvent(pointer('pointermove', 85))
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(f.container.querySelector('.qa-dragging, .qa-drag-active')).toBeNull()
+    document.dispatchEvent(pointer('pointermove', 135)); expect(f.container.querySelector('.qa-drop-into')).toBeNull()
+    document.dispatchEvent(pointer('pointerup', 80)); source.click(); await f.flush()
+    expect(f.actions.open).not.toHaveBeenCalled(); expect(f.actions.commit).not.toHaveBeenCalled()
+    // The next press is a fresh click.
+    openButton(f, 'Brief.md').dispatchEvent(pointer('pointerdown', 75)); document.dispatchEvent(pointer('pointerup', 75)); await new Promise(resolve => setTimeout(resolve, 0)); openButton(f, 'Brief.md').click()
+    expect(f.actions.open).toHaveBeenCalledTimes(1)
+  })
+  it('keeps marking the dragged row and its drop when the panel redraws mid-drag', () => {
+    const f = fixture(); place(f)
+    openButton(f, 'Brief.md').dispatchEvent(pointer('pointerdown', 75)); document.dispatchEvent(pointer('pointermove', 135))
+    f.render(); place(f); document.dispatchEvent(pointer('pointermove', 136))
+    expect(openButton(f, 'Brief.md').closest('.qa-row')?.classList.contains('qa-dragging')).toBe(true)
+    expect(f.container.querySelector<HTMLElement>('.qa-drop-into')?.dataset.groupId).toBe('writing')
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  })
+  it('reports a move that could not be saved, and leaves the Favorite where it was', async () => {
+    const f = fixture(); f.actions.commit.mockRejectedValueOnce(new Error('Favorites could not be saved.'))
+    drag(f, 'Brief.md', 75, 135); await f.flush()
+    expect(f.container.querySelector('.qa-status')?.textContent).toBe('Favorites could not be saved.')
+    expect(f.container.querySelector('.qa-status')?.getAttribute('role')).toBe('alert')
+    expect(f.state.favorites.find(row => row.path === '/Fixture/Atlas/Brief.md')?.groupId).toBe('work')
+  })
+  it('places a Favorite between rows when items sort Custom, across groups and within one', async () => {
+    const f = fixture(); f.apply({ type: 'favorites:preferences', patch: { itemSort: 'custom' } }); f.render()
+    // Custom keeps the order of adding: Atlas, then Brief.md.
+    drag(f, 'Essay.md', 135, 65); await f.flush()
+    expect(f.state.itemOrder.work).toEqual([id(f, '/Fixture/Atlas'), id(f, '/Fixture/Essay.md'), id(f, '/Fixture/Atlas/Brief.md')])
+    expect(f.state.favorites.find(row => row.path === '/Fixture/Essay.md')?.groupId).toBe('work')
+    // Projects is now Atlas 30-60, Essay.md 60-90, Brief.md 90-120: drop Atlas on Brief.md's lower half.
+    drag(f, 'Atlas', 45, 115); await f.flush()
+    expect(f.state.itemOrder.work).toEqual([id(f, '/Fixture/Essay.md'), id(f, '/Fixture/Atlas/Brief.md'), id(f, '/Fixture/Atlas')])
+    expect(f.actions.commit).toHaveBeenCalledTimes(2)
+  })
+  it('does not drag in Filter view, search results, Recent, or a read-only panel', async () => {
+    const f = fixture(); f.apply({ type: 'favorites:preferences', patch: { groupView: 'filter' } }); f.render()
+    drag(f, 'Brief.md', 75, 135); expect(f.container.querySelector('.qa-dragging')).toBeNull()
+    f.apply({ type: 'favorites:preferences', patch: { groupView: 'outline', layout: 'stacked' } }); f.render()
+    const recent = [...f.container.querySelectorAll<HTMLButtonElement>('[aria-label="Open Brief.md"]')].at(-1)!
+    recent.dispatchEvent(pointer('pointerdown', 75)); document.dispatchEvent(pointer('pointermove', 135))
+    expect(f.container.querySelector('.qa-dragging')).toBeNull(); document.dispatchEvent(pointer('pointerup', 135))
+    f.renderer.update({ state: f.state, current: f.current, platform: 'darwin', history: normalizeHistory(undefined, 'darwin'), writable: false })
+    drag(f, 'Brief.md', 75, 135); expect(f.container.querySelector('.qa-dragging')).toBeNull()
+    await f.flush(); expect(f.actions.commit).not.toHaveBeenCalled()
+  })
+})

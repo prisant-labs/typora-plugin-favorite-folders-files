@@ -29,7 +29,10 @@ and IME composition across redraws. Clicks go back through
 Editing pages, such as Manage groups and Manage Browse roots, work on a draft.
 Nothing is saved until **Save**. Favorites drafts are lists of operations
 (`editor-state.ts`) that are replayed in one transaction. The roots page keeps
-its unsaved roots on the page itself. A message about a field or a pending
+its unsaved roots on the page itself. Dragging a Favorite to another group in
+the main list is the exception: it has no page, so it saves at once, as one
+draft of a move and, under Custom item order, a reorder, through the same
+`commit`. A message about a field or a pending
 confirmation appears right below that control, and a failed Save appears
 beside the Save button.
 
