@@ -42,6 +42,10 @@
   (the roots stay in `roots`), and let the new key only refine it.
 - Do not use `structuredClone` in code that runs in Typora; older macOS WebKit
   lacks it. Copy explicitly, as `cloneBrowseRecord` does.
+- Do not call `crypto.randomUUID` directly. WebKit before Safari 15.4 lacks it,
+  and so does the preview page, which is not a secure context; it broke **Add
+  group** there. Use `newGroupId` in `src/favorites-panel.ts`, which falls back
+  to `crypto.getRandomValues`.
 - Browse only reads. On macOS its single shell command is a quoted `/bin/ls`;
   do not add other shell commands, and always quote paths with `shellQuote`.
 - **Choose folder…** uses Typora's own folder dialog, as Typora calls it:

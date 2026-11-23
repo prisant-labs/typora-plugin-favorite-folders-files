@@ -72,7 +72,8 @@ renames or deletes anything on disk.
   doesn't, the row is marked when you try to open it. These ways of adding have
   not yet been tested in Typora.
 - **Make a group while adding:** on **Add Favorite**, click **New group…** below
-  **Save in group**, type a name, and click **Create group** or press Enter. The
+  **Save in group**, type a name, and click **Create group** or press Enter.
+  **Cancel new group** closes the name field and keeps the page. The
   new group is selected, and **Save** creates it with the Favorite, so the group
   appears in the list with the Favorite inside. If the name is empty, or a group
   already has it, a message below the field says so; choose the existing group
