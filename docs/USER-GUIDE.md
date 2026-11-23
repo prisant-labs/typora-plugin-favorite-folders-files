@@ -71,8 +71,26 @@ renames or deletes anything on disk.
   saved as a folder. Favorites doesn't check that a typed path exists. If it
   doesn't, the row is marked when you try to open it. These ways of adding have
   not yet been tested in Typora.
-- **Move or remove a Favorite:** use the row's **⋯** menu. Removing only removes
-  the shortcut, and an **Undo** button appears.
+- **Make a group while adding:** on **Add Favorite**, click **New group…** below
+  **Save in group**, type a name, and click **Create group** or press Enter. The
+  new group is selected, and **Save** creates it with the Favorite, so the group
+  appears in the list with the Favorite inside. If the name is empty, or a group
+  already has it, a message below the field says so; choose the existing group
+  from the list instead. A group you make there but don't choose is not
+  created, and cancelling the page discards the new group too. This has not yet
+  been tested in Typora.
+- **Drag a Favorite to another group:** in the Outline view, drag a Favorite's
+  row onto another group or its heading. The group it would land in is
+  outlined, and the move is saved when you let go. When **Items** sort
+  **Custom**, a line shows where it will go, and you can also drag it to a new
+  place in its own group, and a drop into another group also lands at that
+  line. Press Escape before you let go to cancel a drag. A drop has no
+  **Undo**: drag the Favorite back, or use **⋯** → **Move Favorite to group**.
+  Dragging is not available in the Filter view or in search results, because
+  they don't show groups. This has not yet been tested in Typora.
+- **Move or remove a Favorite:** use the row's **⋯** menu: **Move Favorite to
+  group** or remove. Removing only removes the shortcut, and an **Undo** button
+  appears.
 - **Manage groups:** click the grid button to create, rename, delete and reorder
   groups. Deleting a group moves its Favorites to **Ungrouped**, which always
   stays last. To reorder groups by dragging, set **Group order** to **Custom**,
@@ -81,7 +99,10 @@ renames or deletes anything on disk.
   **Arrange Favorites**.
 
 Editing pages never save as you go. Changes apply only when you press **Save**;
-**Cancel**, **Back** and **Escape** ask before discarding unsaved changes.
+**Cancel**, **Back** and **Escape** ask before discarding unsaved changes. A
+group made with **New group…** on **Add Favorite** counts as an unsaved change.
+Dragging a Favorite in the main list is not an editing page: it saves when you
+let go.
 
 ## Recent
 

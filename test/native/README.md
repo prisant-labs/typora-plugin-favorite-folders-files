@@ -60,6 +60,19 @@ Keep real paths, screenshots and native history in local-only receipts.
   from Windows' **Copy as path**, which adds quotes. Each is listed as the right
   kind after **Use path**. Type a missing path and save it: it opens as
   unavailable, and the shortcut survives.
+- On **Add Favorite**, click **New group…**, type a new name and press Enter.
+  The group is selected in **Save in group**. Save, and confirm the Favorite is
+  in the new group. Repeat with an existing group's name: a message below the
+  field names that group, and nothing is created. Make a group, then Cancel and
+  Discard: no group appears. On macOS, record that **Create group** works at
+  all, since older WebKit lacks `crypto.randomUUID`.
+- In the Outline view with **Items: A-Z**, drag a Favorite onto another group,
+  onto a collapsed group's heading, and onto **Ungrouped**. The target group is
+  outlined, the Favorite moves on release, and the file or folder does not
+  open. A plain click and a Ctrl+click still open it. Press Escape mid-drag:
+  nothing moves. With **Items: Custom**, drag to a place between rows in
+  another group and within the same group, and confirm the order after a
+  restart. Record whether the cursor or text selection misbehaves during a drag.
 - Create/rename groups, move Favorites, delete a group, reorder groups with
   arrows and pointer, and arrange a group's Favorites with arrows. Cancel leaves
   saved membership/order untouched; group deletion transfers members to Ungrouped.
