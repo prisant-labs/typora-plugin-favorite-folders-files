@@ -10,14 +10,16 @@ All notable changes to Favorites for Typora are recorded here. Versions follow
 - **Add Favorite** can now make a group without leaving the page. Click **New
   group…** below **Save in group**, type a name, and click **Create group**.
   The new group is selected, and **Save** creates it together with the
-  Favorite. A group made there but not chosen is not created, and **Cancel**
-  discards everything. This has not been tried in Typora yet.
+  Favorite. An empty or taken name gets a message below the field. A group
+  made there but not chosen is not created, and **Cancel** discards it with
+  the rest of the page. This has not been tried in Typora yet.
 - **Drag a Favorite to another group.** In the Outline view, drag a Favorite's
   row onto another group, or onto a group's heading, to move it there. When
   **Items** sort **Custom**, the drop also sets its place, in its own group or
-  another. A click still opens the Favorite, and **Move Favorite to group** in
-  the row's **⋯** menu remains the keyboard way. This has not been tried in
-  Typora yet.
+  another. The move saves when you let go, and has no **Undo**; drag it back
+  instead. A click still opens the Favorite, and **Move Favorite to group** in
+  the row's **⋯** menu remains the keyboard way. Dragging works only in the
+  Outline view. This has not been tried in Typora yet.
 
 ### Fixed
 
@@ -25,7 +27,8 @@ All notable changes to Favorites for Typora are recorded here. Versions follow
   secure context lack it, and so does WebKit before Safari 15.4. **Add group**
   on **Manage groups** failed with a script error in the preview page for this
   reason. The failure has not been reproduced in Typora. Favorites now falls
-  back to `crypto.getRandomValues`.
+  back to `crypto.getRandomValues`, for **Add group** and for **New group…** on
+  **Add Favorite** alike.
 
 ## 0.4.0 (2026-11-03)
 

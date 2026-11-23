@@ -23,7 +23,8 @@ choose, and stays put when Typora opens a file somewhere else.
 - Group Favorites however you like. Folders and files can share a group, and
   anything without a group stays in **Ungrouped**. Make a new group right on
   the **+** page while you save.
-- Drag a Favorite onto another group to move it there.
+- In the Outline view, drag a Favorite onto another group to move it there.
+  The move is saved when you let go.
 - Create, rename, delete and reorder groups, and arrange the Favorites inside
   each group, on editing pages with explicit **Save** and **Cancel**.
 - Removing a Favorite removes only the shortcut, and offers **Undo**. Favorites
@@ -171,6 +172,9 @@ to Community Plugin "vaults", and an FAQ.
 - **Choose file…**, **Choose folder…** and typed paths on **Add Favorite** have
   not yet been tested in Typora, on Windows or macOS. They have automated tests
   and were tried in the preview page.
+- **New group…** on **Add Favorite**, and dragging a Favorite to another group,
+  have not yet been tested in Typora either. They too have automated tests and
+  were tried in the preview page.
 - **Recently opened** sorting needs a date on every entry in Typora's Recent
   list. When some entries have none, it stays unavailable and each Recent tab
   keeps Typora's own order.
